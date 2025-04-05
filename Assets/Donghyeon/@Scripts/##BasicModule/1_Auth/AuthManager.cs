@@ -111,7 +111,8 @@ namespace Unity.Assets.Scripts.Auth
             }
             catch (Exception e)
             {
-                Debug.LogError($"<color=red>{DEBUG_TAG} 인증 실패: {e.Message}</color>");
+                // 전체 예외 정보를 로그하도록 수정
+                Debug.LogError($"<color=red>{DEBUG_TAG} 인증 실패: {e.ToString()}</color>");
                 return false;
             }
         }

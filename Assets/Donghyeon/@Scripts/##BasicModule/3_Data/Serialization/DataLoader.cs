@@ -71,7 +71,7 @@ namespace Unity.Assets.Scripts.Data
             }
             
  
-            BallDic = LoadJsonToResoureManager<Data.BallDataLoader, int, Data.BallData>("BallData").MakeDict();
+            // BallDic = LoadJsonToResoureManager<Data.BallDataLoader, int, Data.BallData>("BallData").MakeDict();
             // HeroDic = LoadJsonToResoureManager<Data.HeroDataLoader, int, Data.HeroData>("HeroData").MakeDict();
             // SkillDic = LoadJsonToResoureManager<Data.SkillDataLoader, int, Data.SkillData>("SkillData").MakeDict();
             // EffectDic = LoadJsonToResoureManager<Data.EffectDataLoader, int, Data.EffectData>("EffectData").MakeDict();
