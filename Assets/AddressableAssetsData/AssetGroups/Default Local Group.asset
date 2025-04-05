@@ -27,8 +27,20 @@ MonoBehaviour:
     m_SerializedLabels:
     - PreLoad
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 54a52470836fb6145907dbe0c5307adb
+    m_Address: FoodData
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - PreLoad
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 5d67fd61ce60d4e46a5f0c67923be21d
     m_Address: SkillData
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - PreLoad
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 60ea64f71d9aca34982f5c857e1e9bca
+    m_Address: SnakeData
     m_ReadOnly: 0
     m_SerializedLabels:
     - PreLoad

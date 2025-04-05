@@ -1,0 +1,8 @@
+{
+  "foods": [
+    { "DataId": 1, "Value": 2, "PrefabLabel": "Food/Food", "Color": "#FF0000", "SpawnWeight": 50 },
+    { "DataId": 2, "Value": 4, "PrefabLabel": "Food/Food", "Color": "#FF7F00", "SpawnWeight": 25 },
+    { "DataId": 3, "Value": 8, "PrefabLabel": "Food/Food", "Color": "#FFFF00", "SpawnWeight": 15 },
+    { "DataId": 4, "Value": 16, "PrefabLabel": "Food/Food", "Color": "#00FF00", "SpawnWeight": 10 }
+  ]
+}

@@ -35,7 +35,9 @@ public static class Define
 
 	public enum EObjectType
 	{
-		None,
+		None = 0,
+		Unknown,
+		Player,
 		HeroCamp,
 		Hero,
 		Monster,
@@ -44,6 +46,9 @@ public static class Define
 		Env,
 		Effect,
 		ItemHolder,
+		Snake,
+		SnakeBody,
+		Food
 	}
 
 	public enum ENpcType

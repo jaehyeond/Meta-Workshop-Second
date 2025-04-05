@@ -448,4 +448,69 @@ namespace Data
 
 
 	#endregion
+
+	#region SnakeData
+	[Serializable]
+	public class SnakeData
+	{
+		public int DataId;
+		public string PrefabLabel;
+		public float MoveSpeed;
+		public float RotationSpeed;
+		public int InitialValue;
+		public string BodyPrefabLabel;
+		public float BodyDistance;
+		//public List<SnakeColorData> ColorSettings = new List<SnakeColorData>();
+	}
+
+	
+	[Serializable]
+	public class SnakeDataLoader : ILoader<int, SnakeData>
+	{
+		public List<SnakeData> snakes = new List<SnakeData>();
+		public Dictionary<int, SnakeData> MakeDict()
+		{
+			Dictionary<int, SnakeData> dict = new Dictionary<int, SnakeData>();
+			foreach (SnakeData snake in snakes)
+				dict.Add(snake.DataId, snake);
+			return dict;
+		}
+	}
+
+
+	[Serializable]
+	public class SnakeColorData
+	{
+		public int Number;
+		public string Color;
+		public float SizeMultiplier;
+	}
+
+
+	#endregion
+
+	#region FoodData
+	[Serializable]
+	public class FoodData
+	{
+		public int DataId;
+		public int Value;
+		public string PrefabLabel;
+		public string Color;
+		public float SpawnWeight;
+	}
+
+	[Serializable]
+	public class FoodDataLoader : ILoader<int, FoodData>
+	{
+		public List<FoodData> foods = new List<FoodData>();
+		public Dictionary<int, FoodData> MakeDict()
+		{
+			Dictionary<int, FoodData> dict = new Dictionary<int, FoodData>();
+			foreach (FoodData food in foods)
+				dict.Add(food.DataId, food);
+			return dict;
+		}
+	}
+	#endregion
 }

@@ -8,6 +8,9 @@ public class ObjectManager
 {
 	public HashSet<Hero> Heroes { get; } = new HashSet<Hero>();
 	public HashSet<Monster> Monsters { get; } = new HashSet<Monster>();
+	public HashSet<SnakeController> Snakes { get; } = new HashSet<SnakeController>();
+	public HashSet<SnakeBody> SnakeBodies { get; } = new HashSet<SnakeBody>();
+	public HashSet<Food> Foods { get; } = new HashSet<Food>();
 
 
 	#region Roots
@@ -22,6 +25,8 @@ public class ObjectManager
 
 	public Transform HeroRoot { get { return GetRootTransform("@Heroes"); } }
 	public Transform MonsterRoot { get { return GetRootTransform("@Monsters"); } }
+	public Transform SnakeRoot { get { return GetRootTransform("@Snakes"); } }
+	public Transform FoodRoot { get { return GetRootTransform("@Foods"); } }
 
 	#endregion
 
@@ -59,6 +64,26 @@ public class ObjectManager
 			Monsters.Add(monster);
 			monster.SetInfo(templateID);
 		}
+		else if (obj.ObjectType == EObjectType.Snake)
+		{
+			obj.transform.parent = SnakeRoot;
+			SnakeController snake = go.GetComponent<SnakeController>();
+			Snakes.Add(snake);
+			snake.SetInfo(templateID);
+		}
+		else if (obj.ObjectType == EObjectType.SnakeBody)
+		{
+			obj.transform.parent = SnakeRoot;
+			SnakeBody body = go.GetComponent<SnakeBody>();
+			SnakeBodies.Add(body);
+		}
+		else if (obj.ObjectType == EObjectType.Food)
+		{
+			obj.transform.parent = FoodRoot;
+			Food food = go.GetComponent<Food>();
+			Foods.Add(food);
+			food.SetInfo(templateID);
+		}
 
 
 		return obj as T;
@@ -77,6 +102,21 @@ public class ObjectManager
 		{
 			Monster monster = obj.GetComponent<Monster>();
 			Monsters.Remove(monster);
+		}
+		else if (obj.ObjectType == EObjectType.Snake)
+		{
+			SnakeController snake = obj.GetComponent<SnakeController>();
+			Snakes.Remove(snake);
+		}
+		else if (obj.ObjectType == EObjectType.SnakeBody)
+		{
+			SnakeBody body = obj.GetComponent<SnakeBody>();
+			SnakeBodies.Remove(body);
+		}
+		else if (obj.ObjectType == EObjectType.Food)
+		{
+			Food food = obj.GetComponent<Food>();
+			Foods.Remove(food);
 		}
 
 

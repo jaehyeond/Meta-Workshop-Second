@@ -40,13 +40,10 @@ public class GameManager
 	GameSaveData _saveData = new GameSaveData();
 	public GameSaveData SaveData { get { return _saveData; } set { _saveData = value; } }
 
-
-
-
+	private float _foodSpawnTimer = 0f;
+	private float _foodSpawnInterval = 3f;
+	private float _gameAreaSize = 20f;
 	#endregion
-
-
-
 
 	#region Save & Load	
 	public string Path { get { return Application.persistentDataPath + "/SaveData.json"; } }
@@ -96,5 +93,66 @@ public class GameManager
 	#endregion
 
 	#region Action
+	public void InitSnakeGame()
+	{
+		// 게임 초기화
+		InitGame();
+		
+		// 뱀 생성 - 오브젝트 매니저를 통해 생성
+		Managers.Object.Spawn<SnakeController>(Vector3.zero, 1); // Snake DataId 1번 사용
+		
+		// 초기 음식 생성
+		for (int i = 0; i < 5; i++)
+			SpawnFood();
+	}
+
+	public void SpawnFood()
+	{
+		// 가중치 기반 음식 ID 선택
+		int foodId = GetRandomWeightedFoodId();
+		
+		// 랜덤 위치 계산
+		Vector3 position = new Vector3(
+			Random.Range(-_gameAreaSize/2, _gameAreaSize/2),
+			0.5f, // 높이
+			Random.Range(-_gameAreaSize/2, _gameAreaSize/2)
+		);
+		
+		// 음식 생성
+		Managers.Object.Spawn<Food>(position, foodId);
+	}
+
+	private int GetRandomWeightedFoodId()
+	{
+		List<Data.FoodData> foods = new List<Data.FoodData>(Managers.Data.FoodDic.Values);
+		float totalWeight = 0;
+		
+		foreach (var food in foods)
+			totalWeight += food.SpawnWeight;
+		
+		float randomValue = Random.Range(0, totalWeight);
+		float weightSum = 0;
+		
+		foreach (var food in foods)
+		{
+			weightSum += food.SpawnWeight;
+			if (randomValue <= weightSum)
+				return food.DataId;
+		}
+		
+		return foods[0].DataId; // 기본값
+	}
+
+	// Update 메서드에 음식 생성 로직 추가
+	private void Update()
+	{
+		_foodSpawnTimer += Time.deltaTime;
+		
+		if (_foodSpawnTimer >= _foodSpawnInterval)
+		{
+			_foodSpawnTimer = 0;
+			SpawnFood();
+		}
+	}
 	#endregion
 }

@@ -36,6 +36,9 @@ public class UI_StartUpScene : UI_Scene
 
 		StartLoadAssets();
 
+		// Snake 게임 초기화 메서드 호출
+		InitSnakeGame();
+
 		return true;
     }
 
@@ -60,5 +63,49 @@ public class UI_StartUpScene : UI_Scene
 				GetText((int)Texts.DisplayText).text = "Touch To Start";
 			}
 		});
+	}
+
+	// Snake 게임 초기화 메서드 추가
+	private void InitSnakeGame()
+	{
+		Debug.Log("Snake 게임 초기화 시작");
+		
+		// 데이터가 로드되지 않았다면 강제로 초기화
+		if (Managers.Data.SnakeDic == null || Managers.Data.SnakeDic.Count == 0)
+		{
+			Debug.LogWarning("Snake 데이터가 없어 초기화합니다");
+			Managers.Data.Init();
+		}
+		
+		// Snake Head 생성
+		Vector3 startPosition = new Vector3(0, 0.5f, 0);
+		SnakeController head = Managers.Object.Spawn<SnakeController>(startPosition, 1);
+		
+		if (head != null)
+		{
+			Debug.Log("Snake 생성 성공");
+			// 명시적으로 SetInfo 호출
+			head.SetInfo(1);
+		}
+		
+		// 초기 Food 생성
+		CreateInitialFood();
+	}
+	
+	private void CreateInitialFood()
+	{
+		// 3개의 음식 생성
+		for (int i = 0; i < 3; i++)
+		{
+			float x = Random.Range(-10f, 10f);
+			float z = Random.Range(-10f, 10f);
+			Vector3 foodPos = new Vector3(x, 0.5f, z);
+			
+			Food food = Managers.Object.Spawn<Food>(foodPos, 1);
+			if (food != null)
+			{
+				Debug.Log($"음식 생성: 위치={foodPos}");
+			}
+		}
 	}
 }

@@ -1,0 +1,14 @@
+{
+  "snakes": [
+    {
+      "DataId": 1,
+      "PrefabLabel": "Snake/Head",
+      "MoveSpeed": 5.0,
+      "RotationSpeed": 180.0,
+      "InitialValue": 2,
+      "BodyPrefabLabel": "Snake/Body",
+      "BodyDistance": 1.2
+      
+    }
+  ]
+}

@@ -19,6 +19,8 @@ public class DataManager
 	public Dictionary<int, Data.EffectData> EffectDic { get; private set; } = new Dictionary<int, Data.EffectData>();
 	public Dictionary<int, Data.AoEData> AoEDic { get; private set; } = new Dictionary<int, Data.AoEData>();
 	public Dictionary<string, Data.TextData> TextDic { get; private set; } = new Dictionary<string, Data.TextData>();
+	public Dictionary<int, Data.SnakeData> SnakeDic { get; private set; } = new Dictionary<int, Data.SnakeData>();
+	public Dictionary<int, Data.FoodData> FoodDic { get; private set; } = new Dictionary<int, Data.FoodData>();
 	
 	// public Dictionary<int, Data.EquipmentData> EquipmentDic { get; private set; } = new Dictionary<int, Data.EquipmentData>();
 	// public Dictionary<int, Data.ConsumableData> ConsumableDic { get; private set; } = new Dictionary<int, Data.ConsumableData>();
@@ -34,7 +36,11 @@ public class DataManager
 
 		TextDic = LoadJson<Data.TextDataLoader, string, Data.TextData>("TextData").MakeDict();
 
-
+		// Snake 데이터 로드 추가
+		SnakeDic = LoadJson<Data.SnakeDataLoader, int, Data.SnakeData>("SnakeData").MakeDict();
+		
+		FoodDic = LoadJson<Data.FoodDataLoader, int, Data.FoodData>("FoodData").MakeDict();
+		
 		// ItemDic.Clear();
 
 		// foreach (var item in EquipmentDic)
@@ -49,4 +55,5 @@ public class DataManager
 		TextAsset textAsset = Managers.Resource.Load<TextAsset>(path);
 		return JsonConvert.DeserializeObject<Loader>(textAsset.text);
 	}
+
 }
