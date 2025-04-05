@@ -2,62 +2,131 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+
+public static class LayerNames
+{
+    public static readonly int Monster = LayerMask.NameToLayer("Monster");
+	public static readonly int Hero = LayerMask.NameToLayer("Hero");
+
+    // 다른 레이어도 필요하면 추가
+}
+
+
 public static class Define
 {
-	public enum EScene
+
+
+
+	public const string GOOGLE_PLAY_STORE = "https://play.google.com/store/apps/details?id=com.DreadNought.PokerDefense";
+    public const string APPLE_APP_STORE = "";
+
+    public const float THIRD_PARTY_SERVICE_INIT_TIME = 1f;
+
+    public const int MAX_CHAPTER = 4;
+
+
+
+	public enum AchievementType
 	{
-		Unknown,
-		TitleScene,
-		GameScene,
+		/// <summary>
+		/// 골드 수집 업적
+		/// </summary>
+		CollectGold = 0,
+		
+		/// <summary>
+		/// 레벨 달성 업적
+		/// </summary>
+		ReachLevel = 1,
+		
+		/// <summary>
+		/// 게임 플레이 횟수 업적
+		/// </summary>
+		PlayGames = 2,
+		
+		/// <summary>
+		/// 아이템 획득 업적
+		/// </summary>
+		CollectItems = 3,
+		
+		/// <summary>
+		/// 적 처치 업적
+		/// </summary>
+		DefeatEnemies = 4,
+		
+		/// <summary>
+		/// 스킬 사용 업적
+		/// </summary>
+		UseSkills = 5,
+		
+		/// <summary>
+		/// 퀘스트 완료 업적
+		/// </summary>
+		CompleteQuests = 6,
+		
+		InviteFriends = 7,
+
+		ConsecutiveLogins = 8,
+		
+		PlayTime = 9
 	}
 
-	public enum EUIEvent
+
+
+
+	public enum ItemType
+	{
+		Weapon,
+		Shield,
+		ChestArmor,
+		Gloves,
+		Boots,
+		Accessory,
+	}
+
+    public enum RewardType
+    {
+        Gold,
+        Gem,
+    }
+
+
+	public enum HostType
+	{
+		Host,
+		Client,
+		All
+	}
+	public enum ESkillSlot
+	{
+		Default,
+		Env,
+		A,
+		B
+	}
+	public enum EOrganizer
+	{
+		HOST,
+		CLIENT
+	}
+    public enum EUIEvent
 	{
 		Click,
 		PointerDown,
 		PointerUp,
 		Drag,
 	}
-
-	public enum EJoystickState
-	{
-		PointerDown,
-		PointerUp,
-		Drag,
-	}
-
-	public enum ESound
-	{
-		Bgm,
-		Effect,
-		Max,
-	}
-
-	public enum EObjectType
+		public enum EObjectType
 	{
 		None,
 		HeroCamp,
-		Hero,
-		Monster,
-		Npc,
+		Creature,
 		Projectile,
 		Env,
 		Effect,
-		ItemHolder,
+		Monster,
+		Hero
 	}
-
-	public enum ENpcType
-	{
-		Camp,
-		Portal,
-		Waypoint,
-		BlackSmith,
-		Guild,
-		TreasureBox,
-		Dungeon
-	}
-
-	public enum ECreatureState
+		public enum ECreatureState
 	{
 		None,
 		Idle,
@@ -66,76 +135,18 @@ public static class Define
 		OnDamaged,
 		Dead
 	}
-
-	public enum EHeroMoveState
-	{
-		None,
-		TargetMonster,
-		CollectEnv,
-		ReturnToCamp,
-		ForceMove,
-		ForcePath
-	}
-
-	public enum EEnvState
-	{
-		Idle,
-		OnDamaged,
-		Dead
-	}
-
-	public enum ELayer
-	{
-		Default = 0,
-		TransparentFX = 1,
-		IgnoreRaycast = 2,
-		Dummy1 = 3,
-		Water = 4,
-		UI = 5,
-		Hero = 6,
-		Monster = 7,
-		Env = 8,
-		Obstacle = 9,
-		Projectile = 10,
-	}
-
-	public enum EColliderSize
-	{
-		Small,
-		Normal,
-		Big
-	}
-
-	public enum EFindPathResult
-	{
-		Fail_LerpCell,
-		Fail_NoPath,
-		Fail_MoveTo,
-		Success,
-	}
-
-	public enum ECellCollisionType
-	{
-		None,
-		SemiWall,
-		Wall,
-	}
-
-	public enum ESkillSlot
-	{
-		Default,
-		Env,
-		A,
-		B
-	}
-
 	public enum EIndicatorType
 	{
 		None,
 		Cone,
 		Rectangle,
 	}
-
+	public enum EEffectType
+	{
+		Buff,
+		Debuff,
+		CrowdControl,
+	}
 	public enum EEffectSize
 	{
 		CircleSmall,
@@ -145,27 +156,6 @@ public static class Define
 		ConeNormal,
 		ConeBig,
 	}
-
-	public enum EStatModType
-	{
-		Add,
-		PercentAdd,
-		PercentMult,
-	}
-
-	public enum EEffectType
-	{
-		Buff,
-		Debuff,
-		CrowdControl,
-	}
-
-	public enum EEffectSpawnType
-	{
-		Skill, // 지속시간이 있는 기본적인 이펙트 
-		External, // 외부(장판스킬)에서 이펙트를 관리(지속시간에 영향을 받지않음)
-	}
-
 	public enum EEffectClearType
 	{
 		TimeOut, // 시간초과로 인한 Effect 종료
@@ -173,7 +163,11 @@ public static class Define
 		TriggerOutAoE, // AoE스킬을 벗어난 종료
 		EndOfAirborne, // 에어본이 끝난 경우 호출되는 종료
 	}
-
+	public enum EEffectSpawnType
+	{
+		Skill, // 지속시간이 있는 기본적인 이펙트 
+		External, // 외부(장판스킬)에서 이펙트를 관리(지속시간에 영향을 받지않음)
+	}
 	public enum EEffectClassName
 	{
 		Bleeding,
@@ -194,78 +188,18 @@ public static class Define
 		CleanDebuff,
 	}
 
-	public enum ELanguage
+	public enum EStatModType
 	{
-		Korean,
-		English,
-		French,
-		SimplifiedChinese,
-		TraditionalChinese,
-		Japanese
+		Add,
+		PercentAdd,
+		PercentMult,
 	}
-
-	public enum EItemGrade
-	{
-		None,
-		Normal,
-		Rare,
-		Epic,
-		Legendary
-	}
-
-	public enum EItemGroupType
-	{
-		None,
-		Equipment,
-		Consumable,
-	}
-
-	public enum EItemType
-	{
-		None,
-		Weapon,
-		Armor,
-		Potion,
-		Scroll
-	}
-
-	public enum EItemSubType
-	{
-		None,
-
-		Sword,
-		Dagger,
-		Bow,
-
-		Helmet,
-		Armor,
-		Shield,
-		Gloves,
-		Shoes,
-
-		EnchantWeapon,
-		EnchantArmor,
-
-		HealthPotion,
-		ManaPotion,
-	}
-
-	public const float EFFECT_SMALL_RADIUS = 2.5f;
-	public const float EFFECT_NORMAL_RADIUS = 4.5f;
-	public const float EFFECT_BIG_RADIUS = 5.5f;
-
-	public const int CAMERA_PROJECTION_SIZE = 12;
-
-	// HARD CODING
-	public const float HERO_SEARCH_DISTANCE = 8.0f;
-	public const float MONSTER_SEARCH_DISTANCE = 8.0f;
-	public const int HERO_DEFAULT_MELEE_ATTACK_RANGE = 1;
-	public const int HERO_DEFAULT_RANGED_ATTACK_RANGE = 5;
-	public const float HERO_DEFAULT_STOP_RANGE = 1.5f;
-
-	public const int HERO_DEFAULT_MOVE_DEPTH = 10;
-	public const int MONSTER_DEFAULT_MOVE_DEPTH = 3;
-
+    public enum EJoystickState
+    {
+        PointerDown,
+        PointerUp,
+        Drag
+    }
 	public const int HERO_WIZARD_ID = 201000;
 	public const int HERO_KNIGHT_ID = 201001;
 	public const int HERO_LION_ID = 201003;
@@ -282,6 +216,38 @@ public static class Define
 	public const char MAP_TOOL_WALL = '0';
 	public const char MAP_TOOL_NONE = '1';
 	public const char MAP_TOOL_SEMI_WALL = '2';
+
+}
+	public enum ECreatureState
+	{
+		None,
+		Idle,
+		Move,
+		Skill,
+		OnDamaged,
+		Dead
+	}
+
+	public enum EHeroMoveState
+	{
+		None,
+		TargetMonster,
+		CollectEnv,
+		ReturnToCamp,
+		ForceMove,
+		ForcePath
+	}
+
+
+public static class SortingLayers
+{
+	public const int SPELL_INDICATOR = 200;
+	public const int CREATURE = 300;
+	public const int ENV = 300;
+	public const int NPC = 310;
+	public const int PROJECTILE = 310;
+	public const int SKILL_EFFECT = 310;
+	public const int DAMAGE_FONT = 410;
 }
 
 public static class AnimName
@@ -298,15 +264,4 @@ public static class AnimName
 	public const string EVENT_ATTACK_B = "event_attack";
 	public const string EVENT_SKILL_A = "event_attack";
 	public const string EVENT_SKILL_B = "event_attack";
-}
-
-public static class SortingLayers
-{
-	public const int SPELL_INDICATOR = 200;
-	public const int CREATURE = 300;
-	public const int ENV = 300;
-	public const int NPC = 310;
-	public const int PROJECTILE = 310;
-	public const int SKILL_EFFECT = 310;
-	public const int DAMAGE_FONT = 410;
 }
