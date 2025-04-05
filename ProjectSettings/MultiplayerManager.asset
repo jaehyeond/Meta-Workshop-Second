@@ -3,5 +3,17 @@
 --- !u!655991488 &1
 MultiplayerManager:
   m_ObjectHideFlags: 0
-  m_EnableMultiplayerRoles: 0
-  m_StrippingTypes: {}
+  m_EnableMultiplayerRoles: 1
+  m_StrippingTypes:
+    1: []
+    2:
+    - UnityEngine.AudioModule:UnityEngine:AudioBehaviour
+    - UnityEngine.AudioModule:UnityEngine:AudioLowPassFilter
+    - UnityEngine.AudioModule:UnityEngine:AudioListener
+    - UnityEngine.AudioModule:UnityEngine:AudioSource
+    - UnityEngine.AudioModule:UnityEngine:AudioHighPassFilter
+    - UnityEngine.AudioModule:UnityEngine:AudioDistortionFilter
+    - UnityEngine.AudioModule:UnityEngine:AudioEchoFilter
+    - UnityEngine.AudioModule:UnityEngine:AudioReverbZone
+    - UnityEngine.AudioModule:UnityEngine:AudioReverbFilter
+    - UnityEngine.AudioModule:UnityEngine:AudioChorusFilter
