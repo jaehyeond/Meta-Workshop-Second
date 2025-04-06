@@ -1,18 +1,26 @@
 ﻿using UnityEngine;
 using Unity.Netcode;
+using TMPro;
 
 public class SnakeHead : MonoBehaviour
 {
     private float _speed = 5f;
     private Quaternion _targetRotation;
     [SerializeField] private float _rotationSpeed = 10f; // 회전 속도 (Inspector에서 조절 가능)
+    [SerializeField] private TextMeshPro _valueText; // 값을 표시할 TextMeshPro 컴포넌트
+    
+    private int _currentValue = 2; // 기본 값은 2로 시작
 
     // Public getter for speed
     public float Speed => _speed;
+    
+    // Public getter for current value
+    public int Value => _currentValue;
 
     public void Construct(float speed) {
         _speed = speed;
         _targetRotation = transform.rotation; // 초기 목표 회전값 설정
+        UpdateValueDisplay(); // 초기 값 표시 업데이트
     }
 
     public void LookAt(Vector3 target)
@@ -47,5 +55,35 @@ public class SnakeHead : MonoBehaviour
     {
         var timeStep = Time.deltaTime * _speed;
         transform.Translate(transform.forward * timeStep, Space.World);
+    }
+    
+    /// <summary>
+    /// Snake의 현재 값을 업데이트합니다.
+    /// </summary>
+    /// <param name="value">증가시킬 값</param>
+    public void UpdateValue(int increment)
+    {
+        _currentValue += increment;
+        UpdateValueDisplay();
+    }
+    
+    /// <summary>
+    /// 현재 값으로 텍스트 표시를 업데이트합니다.
+    /// </summary>
+    private void UpdateValueDisplay()
+    {
+        if (_valueText != null)
+        {
+            _valueText.text = _currentValue.ToString();
+        }
+    }
+    
+    /// <summary>
+    /// 현재 값을 특정 값으로 설정합니다.
+    /// </summary>
+    public void SetValue(int value)
+    {
+        _currentValue = value;
+        UpdateValueDisplay();
     }
 }
