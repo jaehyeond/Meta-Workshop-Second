@@ -2,6 +2,8 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using VContainer;
+using VContainer.Unity;
 using static Define;
 
 public class UI_Joystick : UI_Base
@@ -11,6 +13,7 @@ public class UI_Joystick : UI_Base
         JoystickBG,
         JoystickCursor,
     }
+    private GameManager _gameManager;
 
     private GameObject _background;
     private GameObject _cursor;
@@ -23,6 +26,16 @@ public class UI_Joystick : UI_Base
         if (base.Init() == false)
             return false;
 
+        _gameManager = FindObjectOfType<LifetimeScope>()?.Container.Resolve<GameManager>();
+
+        if (_gameManager == null)
+        {
+            Debug.LogError("UI_Joystick에서 GameManager를 Resolve할 수 없습니다!");
+            // 또는 ProjectContext에서 직접 Resolve 시도
+            // _gameManager = ProjectContext.Instance.Container.Resolve<GameManager>();
+        }
+
+        
         BindObjects(typeof(GameObjects));
         _background = GetObject((int)GameObjects.JoystickBG);
         _cursor = GetObject((int)GameObjects.JoystickCursor);
@@ -53,8 +66,11 @@ public class UI_Joystick : UI_Base
             _background.transform.position = eventData.position;
             _cursor.transform.position = eventData.position;
         }
-        
-        // Managers.Game.JoystickState = EJoystickState.PointerDown;
+        if(_gameManager == null)
+        {
+            Debug.LogError("GameManager가 존재하지 않습니다.");
+        }
+         _gameManager.JoystickState = EJoystickState.PointerDown;
     }
 
     public void OnPointerUp(PointerEventData eventData)
@@ -65,8 +81,8 @@ public class UI_Joystick : UI_Base
             _cursor.transform.position = _touchPos;
         }
         
-        // Managers.Game.MoveDir = Vector2.zero;
-        // Managers.Game.JoystickState = EJoystickState.PointerUp;
+        _gameManager.MoveDir = Vector2.zero;
+        _gameManager.JoystickState = EJoystickState.PointerUp;
     }
 
     public void OnDrag(PointerEventData eventData)
@@ -80,8 +96,8 @@ public class UI_Joystick : UI_Base
         Vector2 moveDir = touchDir.normalized;
         Vector2 newPosition = _touchPos + moveDir * moveDist;
         _cursor.transform.position = newPosition;
-        // Managers.Game.MoveDir = moveDir;
-        // Managers.Game.JoystickState = EJoystickState.Drag;
+        _gameManager.MoveDir = moveDir;
+        _gameManager.JoystickState = EJoystickState.Drag;
     }
 
     public void OnClick(PointerEventData eventData)
@@ -90,11 +106,11 @@ public class UI_Joystick : UI_Base
             return;  // 조이스틱 모드에서는 클릭 무시
 
         // 클릭 모드: 클릭 위치로 이동 방향 계산
-        // Vector2 playerScreenPos = Camera.main.WorldToScreenPoint(Managers.Game.GetPlayerPosition());
+        // Vector2 playerScreenPos = Camera.main.WorldToScreenPoint(_gameManager.GetPlayerPosition());
         // Vector2 clickDir = (eventData.position - playerScreenPos).normalized;
         
-        // Managers.Game.MoveDir = clickDir;
-        // Managers.Game.JoystickState = EJoystickState.Drag;  // 기존 상태 재활용
+        // _gameManager.MoveDir = clickDir;
+        // _gameManager.JoystickState = EJoystickState.Drag;  // 기존 상태 재활용
     }
     #endregion
 }

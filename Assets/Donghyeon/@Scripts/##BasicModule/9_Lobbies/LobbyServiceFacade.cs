@@ -32,7 +32,8 @@ namespace Unity.Assets.Scripts.UnityServices.Lobbies{
         [Inject] NetworkManager _networkManager;
         const float k_HeartbeatPeriod = 8; // The heartbeat must be rate-limited to 5 calls per 30 seconds. We'll aim for longer in case periods don't align.
         float m_HeartbeatTime = 0;
-        public int MaxConnectedPlayers = 2;
+        [Inject] ConnectionManager m_ConnectionManager; // ConnectionManager 주입 추가
+        public int MaxConnectedPlayers { get; private set; } // 속성으로 변경
 
         LifetimeScope m_ServiceScope;
         LobbyAPIInterface m_LobbyApiInterface;
@@ -60,7 +61,17 @@ namespace Unity.Assets.Scripts.UnityServices.Lobbies{
             });
 
             m_LobbyApiInterface = m_ServiceScope.Container.Resolve<LobbyAPIInterface>();
-
+            // 주입된 ConnectionManager에서 MaxConnectedPlayers 값 설정
+            if (m_ConnectionManager != null)
+            {
+                 MaxConnectedPlayers = m_ConnectionManager.MaxConnectedPlayers;
+            }
+            else
+            {
+                 Debug.LogError("[LobbyServiceFacade] ConnectionManager가 주입되지 않았습니다!");
+                 // 기본값 설정 또는 오류 처리
+                 MaxConnectedPlayers = 4; // 예시: 기본값 설정
+            }
             //See https://docs.unity.com/lobby/rate-limits.html
             m_RateLimitQuery = new RateLimitCooldown(1f);
             m_RateLimitJoin = new RateLimitCooldown(3f);

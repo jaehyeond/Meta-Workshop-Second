@@ -4,19 +4,80 @@ using Unity.Netcode;
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+using VContainer; // LifetimeScope 및 Container 관련
+using Unity.Assets.Scripts.Resource; // ResourceManager에 접근하기 위해 추가
+using Unity.Assets.Scripts.UI; // UI 네임스페이스 추가
+using Unity.Assets.Scripts.GameManager; // GameManager 네임스페이스 추가
+
+// 조이스틱 컨트롤을 위한 인터페이스
+public interface ISnakeInputProvider
+{
+    Vector2 MovementDirection { get; }
+    event Action<Vector2> OnMovementDirectionChanged;
+}
+
+// 조이스틱 입력 제공자 클래스 (같은 파일에 추가)
+public class JoystickInputProvider : MonoBehaviour, ISnakeInputProvider
+{
+    [SerializeField] private UI_Joystick _joystick; // 인스펙터에서 할당
+    private Vector2 _direction;
+
+    public Vector2 MovementDirection => _direction;
+    
+    public event Action<Vector2> OnMovementDirectionChanged;
+
+    private void Update()
+    {
+        if (_joystick == null) return; // 조이스틱이 없으면 무시
+        
+        // 조이스틱의 방향 가져오기
+        Vector2 newDirection = Vector2.zero;
+        
+        if (_joystick != null && _joystick.GetComponent<UI_Joystick>() != null)
+        {
+            // UI_Joystick의 구현에 따라 방향을 가져오는 방식 조정
+            var joystick = _joystick.GetComponent<UI_Joystick>();
+            newDirection = joystick.GetJoystickDirection();
+        }
+        
+        // 방향이 변경되었는지 확인
+        if (Vector2.Distance(newDirection, _direction) > 0.01f)
+        {
+            _direction = newDirection;
+            OnMovementDirectionChanged?.Invoke(_direction);
+        }
+    }
+}
 
 // PlayerSnakeController가 NetworkBehaviour를 상속하는지 확인하세요.
 public class PlayerSnakeController : NetworkBehaviour
 {
-    // --- 컴포넌트 참조 ---
+    #region Dependencies
+    // GameManager는 Owner Client에서만 필요하므로 OnNetworkSpawn에서 Resolve
+    [Inject] private GameManager _gameManager;
+    [Inject] private ResourceManager _resourceManager;
+    
+    // 조이스틱 입력 제공자
+    [SerializeField] private bool _useJoystickInput = true;
+    private ISnakeInputProvider _inputProvider;
+    #endregion
+
+    #region Settings
+    [Header("Movement Settings")]
+    [SerializeField] private float _initialSnakeSpeed = 5f; // Inspector에서 초기 속도 설정
+    #endregion
+
+    #region Core Components
     [Header("Core Components")]
     [SerializeField] private Snake _snake; // 실제 스네이크 로직 담당 (움직임, 외형 등)
     [SerializeField] private GameObject _bodyDetailPrefab; // Body 세그먼트 프리팹
     
     // --- 2048 게임 관련 변수 ---
     [Header("2048 Game Settings")]
-    [SerializeField] private int _valueIncrement = 2; // Apple 획득 시 증가하는 값 (기본값: 2)
-    [SerializeField] private float _segmentSpacing = 1f; // 세그먼트 간 간격
+    [SerializeField] private int _valueIncrement = 2; // 각 사과마다 증가할 값
+    [SerializeField] private float _segmentSpacing = 0.5f; // 세그먼트 간 간격
+    private List<Vector3> _bodyPositions = new List<Vector3>(); // 몸통 위치 기록
+    private List<GameObject> _bodySegments = new List<GameObject>(); // 몸통 세그먼트 객체
 
     // --- 네트워크 동기화 변수 ---
     // 서버 -> 클라이언트로 동기화될 변수들 (예시)
@@ -24,50 +85,118 @@ public class PlayerSnakeController : NetworkBehaviour
     private NetworkVariable<int> _networkScore = new NetworkVariable<int>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
     private NetworkVariable<int> _networkSize = new NetworkVariable<int>(1, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
     private NetworkVariable<NetworkString> _networkPlayerId = new NetworkVariable<NetworkString>("", NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server); // 고유 ID 동기화용
-    
-    // 2048 게임을 위한 네트워크 변수 추가
-    private NetworkVariable<int> _networkHeadValue = new NetworkVariable<int>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+    private NetworkVariable<int> _networkHeadValue = new NetworkVariable<int>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server); // 2048 게임용
 
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
 
-        Debug.Log($"[PlayerSnakeController] OnNetworkSpawn 시작! NetworkObjectId: {NetworkObjectId}");
-        Debug.Log($"[PlayerSnakeController] 역할 정보: IsOwner={IsOwner}, IsServer={IsServer}, IsClient={IsClient}, OwnerClientId={OwnerClientId}");
+        if (IsServer)
+        {
+            InitializeServerState();
+        }
 
-        // --- 모든 클라이언트 공통 설정 ---
         if (IsClient)
         {
             Debug.Log($"[PlayerSnakeController] 클라이언트: NetworkVariable 변경 구독");
             _networkScore.OnValueChanged += OnScoreChanged;
             _networkSize.OnValueChanged += OnSizeChanged;
             _networkPlayerId.OnValueChanged += OnPlayerIdChanged;
-            _networkHeadValue.OnValueChanged += OnHeadValueChanged; // 2048 게임용 값 변경 구독
+            _networkHeadValue.OnValueChanged += OnHeadValueChanged;
 
              UpdateScoreUI(_networkScore.Value);
              UpdateSnakeBodySize(_networkSize.Value);
              UpdateUniqueIdComponent(_networkPlayerId.Value);
-             UpdateSnakeHeadValue(_networkHeadValue.Value); // 초기 Head 값 설정
         }
 
         // --- Owner 클라이언트 전용 설정 (Coroutine으로 분리) ---
         if (IsOwner)
         {
-            Debug.Log($"[PlayerSnakeController] 이 스네이크는 로컬 플레이어(내 것)입니다! 초기화 코루틴 시작.");
-            StartCoroutine(InitializeLocalPlayer());
+            InitializeOwnerClient();
+            
+            // 조이스틱 입력 설정
+            if (_useJoystickInput)
+            {
+                SetupJoystickInput();
+            }
         }
-        // --- 원격 클라이언트 전용 설정 ---
         else
         {
-            Debug.Log($"[PlayerSnakeController] 이 스네이크는 다른 플레이어의 것입니다!");
-            // 원격 플레이어 입력 비활성화 등
-            // GetComponent<PlayerInputHandler>().enabled = false;
+            InitializeRemoteClient();
+        }
 
-            // RemoteSnake의 ChangePosition 의도 반영 (NetworkTransform이 주로 처리)
-            // NetworkTransform이 위치/회전을 동기화합니다.
-            // 필요하다면, 시각적으로 부드러운 회전을 위해 클라이언트 측 보간 로직을 추가할 수 있습니다.
-            // 예: 원격 스네이크의 회전을 부드럽게 처리하는 스크립트 활성화
-            // GetComponent<RemoteSnakeVisualSmoother>()?.enabled = true; // 예시
+        // 서버 측 정리 로직 (필요 시)
+        // if (IsServer) { /* ... */ }
+
+        Debug.Log($"[{GetType().Name}] OnNetworkSpawn 호출됨! NetworkObjectId: {NetworkObjectId}, OwnerClientId: {OwnerClientId}");
+    }
+    #endregion
+
+    #region Joystick Input
+    private void SetupJoystickInput()
+    {
+        // 조이스틱 입력 프로바이더를 찾거나 생성
+        _inputProvider = FindObjectOfType<JoystickInputProvider>();
+        
+        if (_inputProvider == null)
+        {
+            Debug.LogWarning("JoystickInputProvider를 찾을 수 없습니다. 새로 생성합니다.");
+            
+            // 프로바이더가 없으면 생성
+            GameObject joystickProviderGO = new GameObject("JoystickInputProvider");
+            _inputProvider = joystickProviderGO.AddComponent<JoystickInputProvider>();
+        }
+        
+        // 조이스틱 입력 이벤트 구독
+        _inputProvider.OnMovementDirectionChanged += HandleMoveDirChanged;
+        Debug.Log("조이스틱 입력 프로바이더에 구독 완료");
+    }
+    
+    // 조이스틱 입력 처리 메서드
+    private void HandleMoveDirChanged(Vector2 direction)
+    {
+        if (!IsOwner || _snake == null || _snake.Head == null) return;
+        
+        // 스네이크 헤드 방향 변경
+        if (direction.magnitude > 0.1f) // 최소 입력 임계값
+        {
+            // 방향 변경 메서드 호출
+            Vector3 dir3D = new Vector3(direction.x, 0, direction.y);
+            _snake.LookAt(_snake.Head.transform.position + dir3D);
+            
+            // 서버에 방향 변경 알림 (필요시)
+            UpdateDirectionServerRpc(dir3D);
+        }
+    }
+    
+    // 서버에 방향 변경 알림 (선택 사항)
+    [ServerRpc]
+    private void UpdateDirectionServerRpc(Vector3 direction)
+    {
+        if (!IsServer) return;
+        
+        // 서버 측에서 방향 변경 처리 (필요시)
+        if (_snake != null && _snake.Head != null)
+        {
+            _snake.LookAt(_snake.Head.transform.position + direction);
+        }
+    }
+    #endregion
+
+    #region Initialization
+    private void InitializeServerState()
+    {
+        Debug.Log($"[{GetType().Name}] 서버: 스네이크(OwnerClientId: {OwnerClientId}) 스폰됨. 초기 데이터 설정.");
+
+        // 스네이크 헤드 속도 초기화
+        if (_snake != null && _snake.Head != null)
+        {
+            _snake.Head.Construct(_initialSnakeSpeed);
+            Debug.Log($"[{GetType().Name}] 서버: 스네이크 헤드 속도 초기화 완료 ({_initialSnakeSpeed})");
+        }
+        else
+        {
+            Debug.LogError($"[{GetType().Name}] 서버: Snake 또는 SnakeHead 참조가 null입니다!");
         }
 
         // --- 서버/호스트 전용 설정 ---
@@ -79,78 +208,133 @@ public class PlayerSnakeController : NetworkBehaviour
             string playerId = "Player_" + OwnerClientId; // 예시: SessionManager에서 가져와야 함
             int initialScore = 0; // 예시: SessionManager에서 가져오거나 기본값
             int initialSize = 1; // 예시
-            int initialHeadValue = 0; // 2048 게임 초기 값
 
             // NetworkVariable 값 설정 (클라이언트로 동기화됨)
             _networkPlayerId.Value = playerId;
             _networkScore.Value = initialScore;
             _networkSize.Value = initialSize;
-            _networkHeadValue.Value = initialHeadValue;
-
-            // 서버 측에서 리더보드 등 업데이트
-            // _leaderboardService?.UpdateLeader(playerId, initialScore); // 예시
+            _networkHeadValue.Value = 0; // 초기 헤드 값 0으로 설정
+            
+            // 서버 측 다른 시스템 업데이트 (예: 리더보드)
+            // _leaderboardService?.UpdateLeader(playerId, initialScore);
         }
     }
 
-    // --- 로컬 플레이어 초기화 코루틴 ---
-    private IEnumerator InitializeLocalPlayer()
+    private void InitializeOwnerClient()
     {
-        Debug.Log($"[PlayerSnakeController] InitializeLocalPlayer 코루틴 시작. CameraProvider.Instance 기다림 시작.");
-
-        // --- CameraProvider.Instance가 설정될 때까지 기다리기 (타임아웃 포함) ---
-        float waitTime = 0f;
-        float maxWaitTime = 5f; // 최대 5초간 기다림
-
-        while (CameraProvider.Instance == null && waitTime < maxWaitTime)
-        {
-            // 아직 Instance가 null이면 다음 프레임까지 기다림
-            yield return null;
-            waitTime += Time.deltaTime;
-        }
-
-        // --- 기다린 후 결과 확인 ---
-        if (CameraProvider.Instance == null)
-        {
-            Debug.LogError($"[PlayerSnakeController] {maxWaitTime}초 동안 기다렸지만 CameraProvider.Instance가 여전히 null입니다! 초기화 실패.");
-            yield break; // 코루틴 종료
-        }
-
-        Debug.Log($"[PlayerSnakeController] CameraProvider.Instance 찾음 (대기 시간: {waitTime:F2}초). 카메라 설정 시도.");
-
-        // --- 카메라 타겟 설정 ---
-        try // Follow 메서드 호출 시 예외 발생 가능성 대비
-        {
-            CameraProvider.Instance.Follow(this.transform);
-            Debug.Log($"[PlayerSnakeController] CameraProvider.Instance.Follow 호출 완료.");
-        }
-        catch (System.Exception ex)
-        {
-            Debug.LogError($"[PlayerSnakeController] CameraProvider.Follow 호출 중 오류 발생: {ex.Message}\n{ex.StackTrace}");
-        }
-
-
-        // --- 기타 로컬 플레이어 초기화 ---
-        // GetComponent<PlayerInputHandler>().enabled = true;
+        Debug.Log($"[{GetType().Name}] Owner 클라이언트 초기화 시작.");
+        StartCoroutine(FollowPlayerWithCamera());
+        ResolveAndSubscribeToGameManager();
     }
 
-    // --- 네트워크 변수 변경 콜백 메서드 ---
+    private void InitializeRemoteClient()
+    {
+        Debug.Log($"[{GetType().Name}] 원격 클라이언트 초기화 시작 (다른 플레이어의 스네이크).");
+        // 원격 플레이어 관련 설정 (예: 입력 비활성화, 시각적 보간 활성화)
+        // GetComponent<PlayerInputHandler>()?.enabled = false;
+        // GetComponent<RemoteSnakeVisualSmoother>()?.enabled = true;
+    }
+
+    private IEnumerator FollowPlayerWithCamera()
+    {
+        Debug.Log($"[{GetType().Name}] 카메라 추적 코루틴 시작.");
+
+        // 카메라 위치 조정 (필요시 구현)
+        // CameraManager 등을 통해 카메라를 플레이어에게 고정
+        yield return new WaitForSeconds(0.5f);
+
+        Debug.Log($"[{GetType().Name}] 카메라 설정 완료.");
+    }
+    
+    private void ResolveAndSubscribeToGameManager()
+    {
+        try {
+            // Donghyeon의 GameManager 이벤트 구독
+            if (_gameManager != null)
+            {
+                _gameManager.OnMoveDirChanged += HandleGameManagerMoveDirChanged;
+                Debug.Log($"[{GetType().Name}] GameManager 이벤트 구독 완료.");
+            }
+            else
+            {
+                Debug.LogWarning($"[{GetType().Name}] GameManager가 null입니다!");
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[{GetType().Name}] GameManager 이벤트 구독 중 오류: {ex.Message}");
+        }
+    }
+    
+    // GameManager의 방향 변경 이벤트 처리
+    private void HandleGameManagerMoveDirChanged(Vector2 direction)
+    {
+        if (!IsOwner || _snake == null) return;
+        
+        // 조이스틱이 활성화된 경우 무시 (조이스틱이 우선)
+        if (_useJoystickInput && _inputProvider != null) return;
+        
+        // 스네이크 방향 변경
+        if (direction.magnitude > 0.1f)
+        {
+            Vector3 dir3D = new Vector3(direction.x, 0, direction.y);
+            _snake.LookAt(_snake.Head.transform.position + dir3D);
+            
+            // 서버에 방향 변경 알림
+            UpdateDirectionServerRpc(dir3D);
+        }
+    }
+    #endregion
+
+    #region Network Variable Handling
+    private void SubscribeToNetworkVariables()
+    {
+        Debug.Log($"[{GetType().Name}] 클라이언트: NetworkVariable 변경 구독 시작");
+        _networkScore.OnValueChanged += OnScoreChanged;
+        _networkSize.OnValueChanged += OnSizeChanged;
+        _networkPlayerId.OnValueChanged += OnPlayerIdChanged;
+        _networkHeadValue.OnValueChanged += OnHeadValueChanged;
+    }
+
+    private void UnsubscribeFromNetworkVariables()
+    {
+        Debug.Log($"[{GetType().Name}] 클라이언트: NetworkVariable 변경 구독 해지 시작");
+        // Null check for safety during teardown
+        if (_networkScore != null) _networkScore.OnValueChanged -= OnScoreChanged;
+        if (_networkSize != null) _networkSize.OnValueChanged -= OnSizeChanged;
+        if (_networkPlayerId != null) _networkPlayerId.OnValueChanged -= OnPlayerIdChanged;
+        if (_networkHeadValue != null) _networkHeadValue.OnValueChanged -= OnHeadValueChanged;
+    }
+
+    private void UnsubscribeFromGameManagerEvents()
+    {
+        // GameManager 이벤트 구독 해제
+        if (_gameManager != null)
+        {
+            _gameManager.OnMoveDirChanged -= HandleGameManagerMoveDirChanged;
+            Debug.Log($"[{GetType().Name}] GameManager 이벤트 구독 해지 완료.");
+        }
+        
+        // 조이스틱 입력 구독 해제
+        if (_inputProvider != null)
+        {
+            _inputProvider.OnMovementDirectionChanged -= HandleMoveDirChanged;
+            Debug.Log("조이스틱 입력 프로바이더 구독 해지 완료");
+        }
+    }
+
+    // --- 콜백 메서드 ---
     private void OnScoreChanged(int previousValue, int newValue)
     {
-        Debug.Log($"[PlayerSnakeController] 점수 변경 감지: {previousValue} -> {newValue}");
+        Debug.Log($"[{GetType().Name}] 점수 변경 감지: {previousValue} -> {newValue}");
         UpdateScoreUI(newValue);
-
-        // RemoteSnake의 ChangeScore 의도 반영 (리더보드 업데이트)
-        // 클라이언트에서 리더보드 서비스 직접 업데이트는 지양. UI만 업데이트하거나, 서버 응답 대기.
-        // if (!IsServer) _leaderboardService?.UpdateLeader(_networkPlayerId.Value, newValue); // 클라이언트에서 직접 호출 X
+        // 클라이언트 측 리더보드 UI 업데이트 등
     }
 
     private void OnSizeChanged(int previousValue, int newValue)
     {
-        Debug.Log($"[PlayerSnakeController] 크기 변경 감지: {previousValue} -> {newValue}");
+        Debug.Log($"[{GetType().Name}] 크기 변경 감지: {previousValue} -> {newValue}");
         UpdateSnakeBodySize(newValue);
-
-        // RemoteSnake의 ChangeSize/ProcessChangeSizeTo 의도 반영
-        // 실제 몸통 조절은 여기서 수행
     }
     
     // 2048 게임용 Head 값 변경 콜백
@@ -164,15 +348,124 @@ public class PlayerSnakeController : NetworkBehaviour
         {
             // 클라이언트에서는 단순히 시각적 처리만 수행 (실제 추가는 서버에서 함)
             Debug.Log($"[PlayerSnakeController] 2의 제곱수({newValue}) 도달 - 세그먼트 추가 준비");
+            
+            if (IsServer) 
+            {
+                AddBodySegment();
+            }
         }
     }
 
-     private void OnPlayerIdChanged(NetworkString previousValue, NetworkString newValue)
+    private void OnPlayerIdChanged(NetworkString previousValue, NetworkString newValue)
     {
-         Debug.Log($"[PlayerSnakeController] Player ID 변경 감지: {previousValue} -> {newValue}");
-         UpdateUniqueIdComponent(newValue);
-         // 필요하다면 다른 로직 수행
+        Debug.Log($"[{GetType().Name}] Player ID 변경 감지: {previousValue} -> {newValue}");
+        UpdateUniqueIdComponent(newValue);
     }
+    #endregion
+
+    #region 2048 Game Logic
+    // 2의 제곱수인지 확인하는 유틸리티 메서드
+    private bool IsPowerOfTwo(int value)
+    {
+        return value > 0 && (value & (value - 1)) == 0;
+    }
+    
+    // 스네이크 헤드 값 업데이트
+    private void UpdateSnakeHeadValue(int newValue)
+    {
+        if (_snake != null && _snake.Head != null)
+        {
+            _snake.UpdateHeadValue(newValue);
+            
+            // 머리 크기도 값에 따라 조정 (Snake 클래스에서 처리)
+        }
+    }
+    
+    // 몸통 세그먼트 추가
+    private void AddBodySegment()
+    {
+        if (!IsServer) return;
+
+        Vector3 newSegmentPosition;
+        
+        // 기존 세그먼트가 있는 경우 마지막 세그먼트 뒤에 추가
+        if (_bodySegments.Count > 0)
+        {
+            // 마지막 세그먼트의 위치 가져오기
+            Vector3 lastPosition = _bodySegments[_bodySegments.Count - 1].transform.position;
+            Vector3 direction = _snake.Head.transform.position - lastPosition;
+            
+            // 마지막 세그먼트 뒤에 새 세그먼트 위치 계산
+            newSegmentPosition = lastPosition - direction.normalized * _segmentSpacing;
+        }
+        else // 첫 세그먼트인 경우 머리 뒤에 추가
+        {
+            Vector3 headDirection = _snake.Head.transform.forward;
+            newSegmentPosition = _snake.Head.transform.position - headDirection * _segmentSpacing;
+        }
+        
+        // 세그먼트 생성 및 초기화
+        GameObject newSegment = Instantiate(_bodyDetailPrefab, newSegmentPosition, Quaternion.identity);
+        NetworkObject netObj = newSegment.GetComponent<NetworkObject>();
+        if (netObj != null)
+        {
+            netObj.Spawn();
+        }
+        
+        // 세그먼트 값 설정 (머리 값의 절반)
+        int headValue = _networkHeadValue.Value;
+        int segmentValue = headValue / 2;
+        
+        // 값을 가진 세그먼트 추가
+        _snake.AddDetailWithValue(newSegment, segmentValue);
+        
+        // 목록에 추가
+        _bodySegments.Add(newSegment);
+        
+        // 크기 업데이트
+        UpdateSizeServerRpc(_bodySegments.Count + 1); // 머리 + 세그먼트 수
+    }
+    
+    // Apple을 획득했을 때 호출되는 메서드
+    public void OnAppleCollected(int value)
+    {
+        if (!IsServer) return;
+        
+        // 점수 업데이트
+        UpdateScoreServerRpc(value);
+        
+        // 머리 값 증가
+        int currentHeadValue = _networkHeadValue.Value;
+        _networkHeadValue.Value = currentHeadValue + _valueIncrement;
+        
+        Debug.Log($"[PlayerSnakeController] Apple 획득! 헤드 값 {currentHeadValue} -> {_networkHeadValue.Value}");
+    }
+    
+    // Apple 충돌 감지 (OnTriggerEnter에서 호출)
+    private void OnTriggerEnter(Collider other)
+    {
+        if (!IsServer) return;
+        
+        if (other.CompareTag("Apple"))
+        {
+            Debug.Log($"[PlayerSnakeController] Apple과 충돌 감지!");
+            
+            // Apple 획득 처리
+            OnAppleCollected(_valueIncrement);
+            
+            // Apple 제거 (Apple 스크립트 측에서 처리하도록 설계할 수도 있음)
+            NetworkObject appleNetObj = other.GetComponent<NetworkObject>();
+            if (appleNetObj != null)
+            {
+                appleNetObj.Despawn();
+                
+                // 새 Apple 스폰 요청 (AppleManager가 있다면)
+                AppleManager appleManager = FindObjectOfType<AppleManager>();
+                appleManager?.SpawnAppleServerRpc();
+            }
+        }
+    }
+    #endregion
 
     // --- 실제 로직 수행 함수 (예시) ---
     private void UpdateScoreUI(int score)
@@ -196,21 +489,13 @@ public class PlayerSnakeController : NetworkBehaviour
         //      Debug.Log($"UniqueId 컴포넌트 업데이트: {playerId}");
         // }
      }
-     
-    // 2048 게임용 Snake Head 값 업데이트
-    private void UpdateSnakeHeadValue(int value)
-    {
-        if (_snake != null)
-        {
-            _snake.UpdateHeadValue(value);
-            Debug.Log($"Snake Head 값 업데이트: {value}");
-        }
-    }
+
 
     // --- 정리 로직 ---
     public override void OnNetworkDespawn()
     {
-        base.OnNetworkDespawn();
+        // 로컬 플레이어만 입력 처리 및 서버로 전송
+        if (!IsOwner) return;
 
         Debug.Log($"[PlayerSnakeController] OnNetworkDespawn 호출됨! NetworkObjectId: {NetworkObjectId}");
         Debug.Log($"[PlayerSnakeController] 스네이크 객체 해제 처리 필요 (OwnerClientId: {OwnerClientId})");
@@ -218,10 +503,8 @@ public class PlayerSnakeController : NetworkBehaviour
         // 클라이언트에서 구독 해제
         if (IsClient)
         {
-            _networkScore.OnValueChanged -= OnScoreChanged;
-            _networkSize.OnValueChanged -= OnSizeChanged;
-            _networkPlayerId.OnValueChanged -= OnPlayerIdChanged;
-            _networkHeadValue.OnValueChanged -= OnHeadValueChanged; // 2048 게임용 구독 해제
+            UnsubscribeFromNetworkVariables();
+            UnsubscribeFromGameManagerEvents();
         }
 
         // 서버에서 리더보드 등 정리 (필요 시)
@@ -237,8 +520,6 @@ public class PlayerSnakeController : NetworkBehaviour
     {
         if (!IsServer) return;
         _networkScore.Value += amount;
-        // 서버 측 리더보드 업데이트
-        // _leaderboardService?.UpdateLeader(_networkPlayerId.Value, _networkScore.Value);
     }
 
      [ServerRpc]
@@ -247,118 +528,6 @@ public class PlayerSnakeController : NetworkBehaviour
          if (!IsServer) return;
          _networkSize.Value = newSize;
      }
-     
-    // 2048 게임용 - Apple 획득 시 Head 값 증가 (서버 전용)
-    [ServerRpc(RequireOwnership = false)] // Apple이 서버에서 직접 호출할 수 있도록 RequireOwnership = false
-    public void IncreaseHeadValueServerRpc(int increment)
-    {
-        if (!IsServer) return;
-        
-        // 현재 값에서 증가
-        int currentValue = _networkHeadValue.Value;
-        int newValue = currentValue + increment;
-        _networkHeadValue.Value = newValue;
-        
-        Debug.Log($"[PlayerSnakeController] Head 값 증가: {currentValue} -> {newValue}");
-        
-        // 2의 제곱수에 도달하면 Body 세그먼트 추가
-        if (IsPowerOfTwo(newValue) && newValue > 0)
-        {
-            // 이전 값(현재 값의 1/2)으로 새 세그먼트 추가
-            AddBodySegmentServerRpc(newValue / 2);
-            Debug.Log($"[PlayerSnakeController] 2의 제곱수({newValue}) 도달 - 몸통 세그먼트 추가");
-        }
-        
-        // 점수도 함께 증가
-        _networkScore.Value += increment;
-    }
-    
-    // Body 세그먼트 추가 (서버 전용)
-    [ServerRpc]
-    private void AddBodySegmentServerRpc(int value)
-    {
-        if (!IsServer) return;
-        
-        // 새 세그먼트 스폰 위치 계산 (마지막 세그먼트 뒤에 배치)
-        Vector3 spawnPosition;
-        
-        if (_snake.Body.Size > 0)
-        {
-            // 마지막 세그먼트 위치 기준으로 설정
-            // IEnumerable에서 마지막 요소 가져오기
-            Vector3 lastPosition = Vector3.zero;
-            foreach (Vector3 pos in _snake.GetBodyDetailPositions())
-            {
-                lastPosition = pos; // 마지막 요소 저장
-            }
-            spawnPosition = lastPosition - _snake.transform.forward * _segmentSpacing;
-        }
-        else
-        {
-            // 첫 세그먼트는 헤드 뒤에 배치
-            spawnPosition = _snake.Head.transform.position - _snake.Head.transform.forward * _segmentSpacing;
-        }
-        
-        // 세그먼트 인스턴스 생성
-        GameObject newSegment = Instantiate(_bodyDetailPrefab, spawnPosition, _snake.transform.rotation);
-        NetworkObject netObj = newSegment.GetComponent<NetworkObject>();
-        if (netObj != null)
-        {
-            netObj.Spawn(); // 네트워크에 스폰
-            
-            // Snake에 세그먼트 추가 및 값 설정
-            _snake.AddDetailWithValue(newSegment, value);
-            
-            // 크기 증가 네트워크 동기화
-            _networkSize.Value++;
-            
-            // 클라이언트에 세그먼트 값 동기화
-            SyncSegmentValueClientRpc(_networkSize.Value - 1, value);
-        }
-    }
-    
-    // 세그먼트 값 클라이언트 동기화
-    [ClientRpc]
-    private void SyncSegmentValueClientRpc(int segmentIndex, int value)
-    {
-        Debug.Log($"[PlayerSnakeController] 세그먼트 동기화: 인덱스 {segmentIndex}, 값 {value}");
-        
-        // 클라이언트에서는 값만 설정
-        // 실제 세그먼트 추가는 _networkSize 변경 이벤트에서 이루어짐
-    }
-    
-    // 충돌 감지 (Apple 등)
-    private void OnTriggerEnter(Collider other)
-    {
-        // 서버에서만 처리
-        if (!IsServer) return;
-        
-        // Apple인지 확인
-        if (other.CompareTag("Apple"))
-        {
-            Debug.Log($"[PlayerSnakeController] Apple과 충돌 감지!");
-            
-            // Head 값 증가
-            IncreaseHeadValueServerRpc(_valueIncrement);
-            
-            // Apple 제거 (Apple 스크립트 측에서 처리하도록 설계할 수도 있음)
-            NetworkObject appleNetObj = other.GetComponent<NetworkObject>();
-            if (appleNetObj != null)
-            {
-                appleNetObj.Despawn();
-                
-                // 새 Apple 스폰 요청 (AppleManager가 있다면)
-                AppleManager appleManager = FindObjectOfType<AppleManager>();
-                appleManager?.SpawnAppleServerRpc();
-            }
-        }
-    }
-    
-    // 2의 거듭제곱인지 확인
-    private bool IsPowerOfTwo(int x)
-    {
-        return x != 0 && (x & (x - 1)) == 0;
-    }
 
     // --- NetworkString 정의 (NetworkVariable에서 사용) ---
     // 별도 파일로 빼거나 PlayerSnakeController 내부에 둘 수 있음
@@ -376,5 +545,16 @@ public class PlayerSnakeController : NetworkBehaviour
         public static implicit operator NetworkString(string s) => new NetworkString { _value = new Unity.Collections.FixedString64Bytes(s) };
 
         public bool Equals(NetworkString other) => _value.Equals(other._value);
+    }
+}
+
+// UI_Joystick 확장 메서드 - 프로젝트에 맞게 조정할 것
+public static class UI_JoystickExtensions
+{
+    public static Vector2 GetJoystickDirection(this UI_Joystick joystick)
+    {
+        // 프로젝트의 UI_Joystick 구현에 맞게 방향을 가져오는 방법을 구현
+        // 여기서는 기본 벡터를 반환
+        return Vector2.zero;
     }
 }

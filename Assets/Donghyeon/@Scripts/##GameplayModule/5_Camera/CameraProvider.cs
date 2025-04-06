@@ -31,12 +31,13 @@ public class CameraProvider
         Debug.Log("[CameraProvider] 생성자 호출됨");
         Current = Camera.main;
         _cameraFollow = Current?.GetComponent<CameraFollow>();
+        Debug.Log($"[CameraProvider]Camera: {Current}");
+        Debug.Log($"[CameraProvider]CameraFollow: {_cameraFollow}");
 
         Initialize();
     }
     
-    // [Inject]로 의존성 주입 후 호출되는 메서드
-    [Inject]
+
     public void Initialize()
     {
 
@@ -64,6 +65,10 @@ public class CameraProvider
                 return;
             }
         }
+        Debug.Log($"[CameraProvider] Follow 호출됨");
+        Debug.Log($"[CameraProvider] target: {target}");
+        Debug.Log($"[CameraProvider] _cameraFollow: {_cameraFollow}");
+        // Debug.Log($"[CameraProvider] _cameraFollow.Follow: {_cameraFollow.Follo}");
         _cameraFollow.Follow(target); // 이 줄만 남기고
 
         // 실제 CameraFollow 스크립트의 타겟 설정 방법에 맞게 수정이 필요합니다.

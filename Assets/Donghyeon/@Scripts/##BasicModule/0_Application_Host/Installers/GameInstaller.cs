@@ -23,6 +23,8 @@ namespace Unity.Assets.Scripts.Module.ApplicationLifecycle.Installers{
             builder.Register<CameraProvider>(Lifetime.Singleton)
             .AsSelf() // 자기 자신 타입으로 등록
             .AsImplementedInterfaces(); // 필요한 인터페이스가 있다면 추가
+
+            builder.Register<GameManager>(Lifetime.Singleton);
             Debug.Log("[GameInstaller] CameraProvider 등록 완료"); // 로그 추가
 
             // builder.AddSingleton(typeof(Game));

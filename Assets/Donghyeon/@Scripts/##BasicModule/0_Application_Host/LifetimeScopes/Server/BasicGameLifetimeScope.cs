@@ -14,41 +14,41 @@ using Unity.Assets.Scripts.Module.ApplicationLifecycle;
 public class BasicGameLifetimeScope : LifetimeScope
 {
     // 필드 정의
-    private CameraProvider _cameraProvider;
-    private DebugClassFacade _debugClassFacade;
-    private ResourceManager _resourceManager;
 
     protected override void Configure(IContainerBuilder builder)
     {
         // 빈 상태로 둡니다
         Debug.Log($"[{GetType().Name}] Configure 메서드 실행");
+
+
+
+        ResourceManager resourceManager = null;
+        resourceManager = Parent.Container.Resolve<ResourceManager>();
+        builder.RegisterInstance(resourceManager);
+
+        CameraProvider _cameraProvider = null;
+        _cameraProvider = Parent.Container.Resolve<CameraProvider>();
+        builder.RegisterInstance(_cameraProvider);
+
+        DebugClassFacade _debugClassFacade = null;
+        _debugClassFacade = Parent.Container.Resolve<DebugClassFacade>();
+        builder.RegisterInstance(_debugClassFacade);
+
+        UIManager _uiManager = null;
+        _uiManager = Parent.Container.Resolve<UIManager>();
+        builder.RegisterInstance(_uiManager);
+
+        GameManager _gameManager = null;
+        _gameManager = Parent.Container.Resolve<GameManager>();
+        builder.RegisterInstance(_gameManager);
+ 
+
+        _debugClassFacade?.LogInfo(GetType().Name, "BasicGameScene 등록 시도");
+        builder.RegisterComponentInHierarchy<BasicGameScene>();
+
+
     }
 
-    // Awake에서 수동 Resolve
-    protected override void Awake()
-    {
-        base.Awake();
-        
-        Debug.Log($"[{GetType().Name}] Awake 메서드 시작 - 의존성 수동 해결 시도");
-        
-        try
-        {
-            // 컨테이너에서 직접 의존성 해결
-            _cameraProvider = Container.Resolve<CameraProvider>();
-            _debugClassFacade = Container.Resolve<DebugClassFacade>();
-            
-            // ResourceManager 해결 시도
-            _resourceManager = Container.Resolve<ResourceManager>();
-   
-            
-            Debug.Log($"[{GetType().Name}] 모든 의존성 해결 성공!");
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError($"[{GetType().Name}] 의존성 해결 오류: {ex.Message}");
-            Debug.LogException(ex);
-        }
-    }
     
 
 }
