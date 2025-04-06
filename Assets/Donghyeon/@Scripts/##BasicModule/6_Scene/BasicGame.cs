@@ -17,15 +17,13 @@ namespace Unity.Assets.Scripts.Scene
 {
 public class BasicGameScene : BaseScene
 {
-    [Inject] public MapSpawnerFacade _mapSpawnerFacade;
-	[Inject] private ObjectManagerFacade _objectManagerFacade;
+
 	// [Inject] private ServerMonster _serverMonster; // MonoBehaviour는 이런 방식으로 주입받을 수 없습니다.
 	
     // VContainer.IObjectResolver 추가
-    [Inject] private VContainer.IObjectResolver _container;
-    [Inject] private BasicGameState _basicGameState;
+
+    [Inject] private UIManager _uiManager;
 	// greenslime 몬스터 ID
-	public int MONSTER_ID = 202001;
 	
 	// 스폰된 몬스터 관리 리스트
 
@@ -41,43 +39,14 @@ public class BasicGameScene : BaseScene
 
         SceneType = EScene.BasicGame;
  
-        if (!_isEventsSubscribed)
-        {
-            SubscribeEvents();
-            _isEventsSubscribed = true;
-        }
+      	_uiManager.ShowBaseUI<UI_Joystick>();
 
-        // if (_basicGameState != null)
-        // {
-        //     _basicGameState.Load();
-        // }
-        
-        if (_objectManagerFacade != null)
-        {
-            _objectManagerFacade.Load();
-        }
-        
-        if (_mapSpawnerFacade != null)
-        {
-            _mapSpawnerFacade.Load();
-            _mapSpawnerFacade.LoadMap();
-        }
-      
         return true;
     }
 
     public override void Clear()
     {
-        if (_isEventsSubscribed)
-        {
-            UnsubscribeEvents();
-            _isEventsSubscribed = false;
-        }
-        
-        // 참조 해제
-        _objectManagerFacade = null;
-        _mapSpawnerFacade = null;
-        _basicGameState = null;
+
     }
 
     private void OnEnable()
@@ -92,27 +61,15 @@ public class BasicGameScene : BaseScene
 
     private void SubscribeEvents()
     {
-        // 이미 구독되어 있는지 확인하기 위해 먼저 해제
-        UI_BasicGame.OnSummonButtonRequested += OnSummonButtonRequested;
-        MapSpawnerFacade.GridSpawned += OnGridSpawned;
+
     }
 
     private void UnsubscribeEvents()
     {
-        UI_BasicGame.OnSummonButtonRequested -= OnSummonButtonRequested;
-        MapSpawnerFacade.GridSpawned -= OnGridSpawned;
+
     }
 
-    private void OnSummonButtonRequested()
-    {   
-        Debug.Log("[BasicGameScene] OnSummonButtonRequested");
-    }
-
-    private void OnGridSpawned()
-    {
-   
-        
-    }
+ 
 
 
 }

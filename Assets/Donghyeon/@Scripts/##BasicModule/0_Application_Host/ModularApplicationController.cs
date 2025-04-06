@@ -119,6 +119,10 @@ namespace Unity.Assets.Scripts.Module.ApplicationLifecycle
             {
                 return new DataInstaller();
             };
+            m_InstallerFactories[ModuleType.Game] = () => 
+            {
+                return new GameInstaller();
+            };
             // UI 모듈 인스톨러 팩토리
             m_InstallerFactories[ModuleType.UI] = () => 
             {
@@ -139,10 +143,7 @@ namespace Unity.Assets.Scripts.Module.ApplicationLifecycle
                 return new MapInstaller();
             };
 
-            m_InstallerFactories[ModuleType.Game] = () => 
-            {
-                return new GameInstaller();
-            };
+        
         }
 
         /// <summary>

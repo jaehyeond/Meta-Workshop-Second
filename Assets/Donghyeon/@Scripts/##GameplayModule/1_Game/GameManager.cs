@@ -40,7 +40,7 @@ public enum HeroOwningState
 
 
 
-public class GameManager2 : NetworkBehaviour
+public class GameManager 
 {
 	GameSaveData _saveData = new GameSaveData();
 	public GameSaveData SaveData { get { return _saveData; } set { _saveData = value; } }

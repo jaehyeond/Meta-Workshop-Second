@@ -272,6 +272,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
+  _initialSnakeSpeed: 5
   _snake: {fileID: 5818919615701227070}
 --- !u!114 &1193273983838458752
 MonoBehaviour:

@@ -16,8 +16,7 @@ using Vector3 = UnityEngine.Vector3;
         public void ResetRotation() => 
             Head.ResetRotation();
 
-        public void LookAt(Vector3 target) => 
-            Head.LookAt(target);
+
 
         public IEnumerable<Vector3> GetBodyDetailPositions()
         {
