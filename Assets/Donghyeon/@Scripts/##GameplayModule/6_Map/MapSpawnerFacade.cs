@@ -19,7 +19,6 @@ public class MapSpawnerFacade : NetworkBehaviour
     [Inject] private NetworkManager _networkManager;
 
 
-    [SerializeField] private UI_Spawn_Holder _spawn_Holder;
 
     private GameObject _mapInstance;
     
@@ -31,7 +30,7 @@ public class MapSpawnerFacade : NetworkBehaviour
     [SerializeField] public List<bool> Player_spawn_list_Array = new List<bool>();         // Host 스폰 위치 사용 여부
     [SerializeField] public List<bool> Other_spawn_list_Array = new List<bool>();       // Client 스폰 위치 사용 여부
     
-    public Dictionary<string, UI_Spawn_Holder> Hero_Holders = new Dictionary<string, UI_Spawn_Holder>();
+    // public Dictionary<string, UI_Spawn_Holder> Hero_Holders = new Dictionary<string, UI_Spawn_Holder>();
     public int[] Host_Client_Value_Index = new int[2];
 
     public static float xValue, yValue;
@@ -178,10 +177,7 @@ public class MapSpawnerFacade : NetworkBehaviour
                         break;
                 }
 
-                if (_networkManager.IsServer) //_networkManager.IsServer 이렇게 해야 먹힘 왜지?
-                {
-                    StartCoroutine(DelayHeroHolderSpawn(isPlayer));
-                }
+          
             }
         }
         Host_Client_Value_Index[0] = 0; //HOST
@@ -198,61 +194,8 @@ public class MapSpawnerFacade : NetworkBehaviour
     /// Host_Client_Value_Index: 10, 0 각각 좌표표
     /// </summary>
 
-    IEnumerator DelayHeroHolderSpawn(bool Player)
-    {
-        // Player = 지금 2인 전용임 True False 둘중 하나임
-        Debug.Log($"<color=yellow>[MapSpawnerFacade] DelayHeroHolderSpawn: {Player}</color>"); //[MapSpawnerFacade] DelayHeroHolderSpawn: True
-        Debug.Log($"<color=yellow>[MapSpawnerFacade] Host_Client_Value_Index: {Host_Client_Value_Index[0]}, {Host_Client_Value_Index[1]}</color>"); //[MapSpawnerFacade] Host_Client_Value_Index: 10, 0
-        
-        var go = Instantiate(_spawn_Holder);
-        NetworkObject networkObject = go.GetComponent<NetworkObject>();
-        networkObject.Spawn();
-
-        string temp = Player == true ? EOrganizer.HOST.ToString() :  EOrganizer.CLIENT.ToString();
-        int value = Player == true ? 0 : 1;
-        string Organizers = temp + Host_Client_Value_Index[value].ToString();
-        Debug.Log($"<color=yellow>[MapSpawnerFacade] Organizers: {Organizers}</color>"); //[MapSpawnerFacade] Organizers: HOST7
-        Host_Client_Value_Index[value]++;
-
-        yield return new WaitForSeconds(0.5f);
-
-        SpawnGridClientRpc(networkObject.NetworkObjectId, Organizers);
-    }
-
-    [ClientRpc]
-    private void SpawnGridClientRpc(ulong networkID, string Organizers)
-    {
-        // Player = 지금 2인 전용임 True False 둘중 하나임
-
-        Debug.Log($"<color=green>[MapSpawnerFacade] SpawnGridClientRpc: {networkID}, {Organizers}</color>");
-        if (_netUtils.TryGetSpawnedObject_P(networkID, out NetworkObject holderNetworkObject))
-        {
-            bool isPlayer;
-
-            if (Organizers.Contains("HOST"))
-            {
-                isPlayer = _netUtils.LocalID_P() == 0 ? true :false;
-            }
-            else isPlayer = _netUtils.LocalID_P() == 0? false : true;
 
 
-            UI_Spawn_Holder goHolder = holderNetworkObject.GetComponent<UI_Spawn_Holder>();
-
-            SetPositionHero( holderNetworkObject,
-                isPlayer ? _hostSpawnPositions : _clientSpawnPositions,
-                isPlayer ? Player_spawn_list_Array : Other_spawn_list_Array);
-
-            Hero_Holders.Add(Organizers, goHolder);
-            Debug.Log($"<color=green>[MapSpawnerFacade] Hero_Holders 딕셔너리 내용:</color>");
-            foreach (var holder in Hero_Holders)
-            {
-                Debug.Log($"<color=green>  - Key: {holder.Key}</color>");
-                Debug.Log($"<color=green>    - Holder_Part_Name: {holder.Value.Holder_Part_Name}</color>");
-            }
-            goHolder.Holder_Part_Name = Organizers;
-
-        }
-    }
 
     private void SetPositionHero(NetworkObject obj, List<Vector2> spawnList, List<bool> spawnArrayList)
         {
@@ -266,9 +209,9 @@ public class MapSpawnerFacade : NetworkBehaviour
                 obj.transform.position = spawnList[position_value];
             
             }
-            UI_Spawn_Holder holder = obj.GetComponent<UI_Spawn_Holder>();
-            holder.index = position_value;
-            Debug.Log(spawnList[position_value] + " : " + obj.transform.position);
+            // UI_Spawn_Holder holder = obj.GetComponent<UI_Spawn_Holder>();
+            // holder.index = position_value;
+            // Debug.Log(spawnList[position_value] + " : " + obj.transform.position);
         }
 
     /// <summary>
@@ -331,23 +274,9 @@ public class MapSpawnerFacade : NetworkBehaviour
     private void GetPositionSet(string Value01, string Value02)
     {
 
-        GetPositionSetClientRpc(Value01, Value02);
     }
 
-    [ClientRpc]
-    private void GetPositionSetClientRpc(string Value01, string Value02)
-    {
-        UI_Spawn_Holder holder01 = Hero_Holders[Value01];
-        UI_Spawn_Holder holder02 = Hero_Holders[Value02];
 
-        holder01.HeroChange(holder02);
-        holder02.HeroChange(holder01);
-
-        (holder01.Holder_Name, holder02.Holder_Name) = (holder02.Holder_Name, holder01.Holder_Name);
-        (holder01.m_Heroes, holder02.m_Heroes) = (new List<ServerHero>(holder02.m_Heroes), new List<ServerHero>(holder01.m_Heroes));
-        // (holder01.m_Data, holder02.m_Data) = (holder02.m_Data, holder01.m_Data);
-
-    }
 
 
 }

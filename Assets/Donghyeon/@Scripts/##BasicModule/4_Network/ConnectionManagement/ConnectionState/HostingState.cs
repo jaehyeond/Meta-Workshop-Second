@@ -201,12 +201,21 @@ class HostingState : OnlineState
         try
         {
             // 무조건 승인 - 가장 단순한 방식으로 모든 클라이언트 허용
-            response.Approved = true;
-            response.CreatePlayerObject = true;
-            response.Position = Vector3.zero;
-            response.Rotation = Quaternion.identity;
+            float randomX = UnityEngine.Random.Range(-10f, 10f);
+            float randomZ = UnityEngine.Random.Range(-10f, 10f);
+            Vector3 spawnPosition = new Vector3(randomX, 0f, randomZ); // Y는 0으로 가정
+
+            // --- 연결 승인 및 스폰 설정 ---
+            response.Approved = true;           // 연결 승인
+            response.CreatePlayerObject = true; // 플레이어 객체 자동 생성 요청 (유지!)
+
+            // --- 계산된 랜덤 위치 및 기본 회전 설정 ---
+            response.Position = spawnPosition;       // 스폰될 위치 지정
+            response.Rotation = Quaternion.identity; // 스폰될 회전 지정 (기본값)
+
+            Debug.Log($"[HostingState] 클라이언트 승인 완료: ClientID={request.ClientNetworkId}, SpawnPosition={spawnPosition}");
+
             
-            Debug.Log($"[HostingState] 클라이언트 승인 완료: ClientID={request.ClientNetworkId}");
             
             // 추가: 플레이어 데이터 설정 시도
             // if (request.Payload != null && request.Payload.Length > 0)

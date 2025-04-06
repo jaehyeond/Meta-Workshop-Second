@@ -71,7 +71,6 @@ namespace Unity.Assets.Scripts.UI
 
         #region Properties
         
-        [SerializeField] public UI_Spawn_Holder Spawn_Holder;
 
 
         private GameObject MainObject => GetObject((int)GameObjects.Main);

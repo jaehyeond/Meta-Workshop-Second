@@ -1,4 +1,5 @@
 using VContainer;
+using VContainer.Unity;
 
 namespace Unity.Assets.Scripts.Module.ApplicationLifecycle.Installers
 {
@@ -32,21 +33,15 @@ namespace Unity.Assets.Scripts.Module.ApplicationLifecycle.Installers
     }
 
     /// <summary>
-    /// 모듈 인스톨러 인터페이스
-    /// 각 모듈은 이 인터페이스를 구현하여 의존성 주입 설정을 제공합니다.
+    /// 각 모듈의 의존성 주입 설정을 위한 인터페이스
+    /// VContainer의 IInstaller를 상속하여 VContainer 시스템과 통합
     /// </summary>
-    public interface IModuleInstaller
+    public interface IModuleInstaller : IInstaller
     {
         /// <summary>
         /// 이 인스톨러가 담당하는 모듈 타입
         /// </summary>
         ModuleType ModuleType { get; }
-
-        /// <summary>
-        /// 의존성 주입 설정 메서드
-        /// </summary>
-        /// <param name="builder">컨테이너 빌더</param>
-        void Install(IContainerBuilder builder);
     }
 
     

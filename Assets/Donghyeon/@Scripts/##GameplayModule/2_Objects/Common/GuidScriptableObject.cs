@@ -19,6 +19,9 @@ namespace Unity.Assets.Scripts.Objects
         private bool showReadOnlyWarning = false;
 
         public Guid Guid => new Guid(m_Guid);
+        
+        // GUID 값을 문자열로 반환하는 Value 속성 추가
+        public string Value => Guid.ToString();
 
         void OnValidate()
         {
