@@ -136,7 +136,7 @@ public class Bottom_UIs : UI_Scene
         }
 
         // 기본적으로 첫 번째 패널 활성화 (Main)
-        GetPanel(0);
+        // GetPanel(0);
 
         // 색상 설정 (기본값)
     if (ActiveColor == Color.clear) ActiveColor = new Color(0.2f, 0.6f, 1f); // 어두운 파란색
