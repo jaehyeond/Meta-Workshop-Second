@@ -26,6 +26,17 @@ public class SnakeController : BaseObject
     
     public void SetInfo(int dataId)
     {
+        Debug.Log("<color=yellow>SnakeController SetInfo 호출</color>");
+        if (Managers.Data.SnakeDic == null)
+        {
+            Debug.LogError("SnakeDic이 없습니다. 데이터 로드 확인 필요");
+            return;
+        }
+        if (Managers.Data.SnakeDic == null)
+        {
+            Debug.LogError("Snake 데이터가 없습니다. SetInfo 메서드가 호출되었는지 확인하세요.");
+            // return;
+        }
         _snakeDataId = dataId;
         _data = Managers.Data.SnakeDic[dataId];
         _moveSpeed = _data.MoveSpeed;
@@ -35,19 +46,19 @@ public class SnakeController : BaseObject
         UpdateVisual();
     }
     
-    private void Start()
-    {
+    // private void Start()
+    // {
         // 데이터 초기화 확인
-        if (_data == null)
-        {
-            Debug.LogError("Snake 데이터가 없습니다. SetInfo 메서드가 호출되었는지 확인하세요.");
-            _moveSpeed = 5.0f; // 기본값 설정
-            _rotationSpeed = 180.0f; // 기본값 설정
-            _currentValue = 2; // 기본값 설정
-        }
+        // if (_data == null)
+        // {
+        //     Debug.LogError("Snake 데이터가 없습니다. SetInfo 메서드가 호출되었는지 확인하세요.");
+        //     _moveSpeed = 5.0f; // 기본값 설정
+        //     _rotationSpeed = 180.0f; // 기본값 설정
+        //     _currentValue = 2; // 기본값 설정
+        // }
         
-        Debug.Log($"Snake 초기화: 속도={_moveSpeed}, 회전속도={_rotationSpeed}");
-    }
+        // Debug.Log($"Snake 초기화: 속도={_moveSpeed}, 회전속도={_rotationSpeed}");
+    // }
     
     private void Update()
     {

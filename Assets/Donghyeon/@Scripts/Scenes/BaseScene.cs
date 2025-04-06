@@ -13,7 +13,7 @@ public abstract class BaseScene : InitBase
 		if (base.Init() == false)
 			return false;
 
-		Object obj = GameObject.FindObjectOfType(typeof(EventSystem));
+		Object obj = GameObject.FindFirstObjectByType(typeof(EventSystem));
 		if (obj == null)
 		{
 			GameObject go = new GameObject() { name = "@EventSystem" };

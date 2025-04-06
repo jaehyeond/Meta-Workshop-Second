@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+
 using static Define;
 
 public class UI_StartUpScene : UI_Scene
@@ -37,7 +38,6 @@ public class UI_StartUpScene : UI_Scene
 		StartLoadAssets();
 
 		// Snake 게임 초기화 메서드 호출
-		InitSnakeGame();
 
 		return true;
     }
@@ -63,6 +63,10 @@ public class UI_StartUpScene : UI_Scene
 				GetText((int)Texts.DisplayText).text = "Touch To Start";
 			}
 		});
+
+		InitSnakeGame();
+
+
 	}
 
 	// Snake 게임 초기화 메서드 추가
@@ -74,7 +78,8 @@ public class UI_StartUpScene : UI_Scene
 		if (Managers.Data.SnakeDic == null || Managers.Data.SnakeDic.Count == 0)
 		{
 			Debug.LogWarning("Snake 데이터가 없어 초기화합니다");
-			Managers.Data.Init();
+			// Managers.
+			// Managers.Data.Init();
 		}
 		
 		// Snake Head 생성

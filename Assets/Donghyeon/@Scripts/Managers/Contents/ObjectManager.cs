@@ -44,47 +44,60 @@ public class ObjectManager
 	{
 		string prefabName = typeof(T).Name;
 
-		GameObject go = Managers.Resource.Instantiate(prefabName);
-		go.name = prefabName;
+		GameObject go = Managers.Resource.Instantiate("Head.prefab");
+		// go.name = prefabName;
 		go.transform.position = position;
 
 		BaseObject obj = go.GetComponent<BaseObject>();
 
-		if (obj.ObjectType == EObjectType.Hero)
-		{
-			obj.transform.parent = HeroRoot;
-			Hero hero = go.GetComponent<Hero>();
-			Heroes.Add(hero);
-			hero.SetInfo(templateID);
-		}
-		else if (obj.ObjectType == EObjectType.Monster)
-		{
-			obj.transform.parent = HeroRoot;
-			Monster monster = go.GetComponent<Monster>();
-			Monsters.Add(monster);
-			monster.SetInfo(templateID);
-		}
-		else if (obj.ObjectType == EObjectType.Snake)
+		if (obj.ObjectType == EObjectType.Snake)
 		{
 			obj.transform.parent = SnakeRoot;
 			SnakeController snake = go.GetComponent<SnakeController>();
 			Snakes.Add(snake);
-			snake.SetInfo(templateID);
-		}
-		else if (obj.ObjectType == EObjectType.SnakeBody)
-		{
-			obj.transform.parent = SnakeRoot;
-			SnakeBody body = go.GetComponent<SnakeBody>();
-			SnakeBodies.Add(body);
-		}
-		else if (obj.ObjectType == EObjectType.Food)
-		{
-			obj.transform.parent = FoodRoot;
-			Food food = go.GetComponent<Food>();
-			Foods.Add(food);
-			food.SetInfo(templateID);
+			// snake.SetInfo(templateID);
 		}
 
+
+		// if (obj.ObjectType == EObjectType.Hero)
+		// {
+		// 	obj.transform.parent = HeroRoot;
+		// 	Hero hero = go.GetComponent<Hero>();
+		// 	Heroes.Add(hero);
+		// 	hero.SetInfo(templateID);
+		// }
+		// else if (obj.ObjectType == EObjectType.Monster)
+		// {
+		// 	obj.transform.parent = HeroRoot;
+		// 	Monster monster = go.GetComponent<Monster>();
+		// 	Monsters.Add(monster);
+		// 	monster.SetInfo(templateID);
+		// }
+		// else if (obj.ObjectType == EObjectType.Snake)
+		// {
+		// 	obj.transform.parent = SnakeRoot;
+		// 	SnakeController snake = go.GetComponent<SnakeController>();
+		// 	Snakes.Add(snake);
+		// 	snake.SetInfo(templateID);
+		// }
+		// else if (obj.ObjectType == EObjectType.SnakeBody)
+		// {
+		// 	obj.transform.parent = SnakeRoot;
+		// 	SnakeBody body = go.GetComponent<SnakeBody>();
+		// 	SnakeBodies.Add(body);
+		// }
+		// else if (obj.ObjectType == EObjectType.Food)
+		// {
+		// 	obj.transform.parent = FoodRoot;
+		// 	Food food = go.GetComponent<Food>();
+		// 	Foods.Add(food);
+		// 	food.SetInfo(templateID);
+		// }
+
+
+
+
+ // 박재현 하하하하하하하하하하핳 오브젝트 매니저 추가해줘
 
 		return obj as T;
 	}
