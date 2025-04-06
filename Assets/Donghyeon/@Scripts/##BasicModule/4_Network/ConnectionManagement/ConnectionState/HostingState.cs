@@ -25,10 +25,10 @@ class HostingState : OnlineState
 
     [Inject] DebugClassFacade m_DebugClassFacade;
     
-    // 연결 상태 체크 코루틴
-    private Coroutine m_ConnectionStatusCheckCoroutine;
-    private float lastSceneLoadAttemptTime = 0f;
-    private bool _isSceneLoaded = false;
+    // 연결 상태 체크 코루틴 제거
+    // private Coroutine m_ConnectionStatusCheckCoroutine;
+    // private float lastSceneLoadAttemptTime = 0f;
+    // private bool _isSceneLoaded = false;
 
     public override void Enter()
     {
@@ -41,72 +41,45 @@ class HostingState : OnlineState
             Debug.Log("[HostingState] 로비 추적 시작");
         }
 
-        // 플레이어 수 확인 및 씬 전환
-        CheckPlayersAndLoadScene();
+        // 호스팅 시작 시 즉시 게임 씬 로드
+        Debug.Log("[HostingState] 게임 씬 즉시 로드 시도");
+        _sceneManagerEx.LoadScene(EScene.BasicGame.ToString(), useNetworkSceneManager: true);
+
+        // 플레이어 수 확인 및 씬 전환 로직 제거
+        // CheckPlayersAndLoadScene();
         
-        // 연결 상태 모니터링 시작
-        StartPlayerCountMonitoring();
+        // 연결 상태 모니터링 로직 제거
+        // StartPlayerCountMonitoring();
     }
 
-    // 플레이어 수 확인 및 필요시 씬 전환
-    private void CheckPlayersAndLoadScene()
-    {
-        int currentPlayerCount = m_LocalLobby.LobbyUsers.Count;
-        Debug.Log($"[HostingState] 현재 플레이어 수: {currentPlayerCount}/{m_ConnectionManager.MaxConnectedPlayers}");
-
-        // 충분한 플레이어가 있고, 마지막 씬 로드 시도 후 5초가 지났다면
-        // if (currentPlayerCount >= m_ConnectionManager.MaxConnectedPlayers && 
-        //     Time.time - lastSceneLoadAttemptTime > 5f)
-        // {
-        //     Debug.Log("[HostingState] 플레이어 수 충족 - 게임 씬으로 전환");
-        //     lastSceneLoadAttemptTime = Time.time;
-        //     _sceneManagerEx.LoadScene(EScene.BasicGame.ToString(), useNetworkSceneManager: true);
-        // }
-    }
-    private void StartPlayerCountMonitoring()
-    {
-        m_ConnectionStatusCheckCoroutine = m_ConnectionManager.StartCoroutine(
-            MonitorPlayerCount());
-    }
-
-    private System.Collections.IEnumerator MonitorPlayerCount()
-    {
-        // 최초 연결 대기를 위한 지연
-        yield return new WaitForSeconds(3.0f);
-        
-        while (true)
-        {
-            // 플레이어 수 확인
-            int currentPlayerCount = m_LocalLobby.LobbyUsers.Count;
-            int connectedClientCount = m_ConnectionManager.NetworkManager.ConnectedClientsIds.Count;
-            
-            Debug.Log($"[HostingState] 플레이어 상태 체크: 로비 유저={currentPlayerCount}, 연결된 클라이언트={connectedClientCount}");
-            
-            // 씬이 아직 로드되지 않았고, 충분한 플레이어가 있고, 모든 클라이언트가 연결됐는지 확인
-            if (!_isSceneLoaded && 
-                currentPlayerCount >= m_ConnectionManager.MaxConnectedPlayers && 
-                connectedClientCount >= currentPlayerCount)
-            {
-                Debug.Log("[HostingState] 모든 클라이언트 연결 확인됨 - 게임 씬으로 전환");
-                _sceneManagerEx.LoadScene(EScene.BasicGame.ToString(), useNetworkSceneManager: true);
-                _isSceneLoaded = true;
-            }
-            
-            yield return new WaitForSeconds(2.0f);
-        }
-    }
+    // 플레이어 수 확인 및 필요시 씬 전환 로직 제거
+    // private void CheckPlayersAndLoadScene()
+    // {
+    //     ...
+    // }
+    
+    // 플레이어 수 모니터링 관련 메소드 제거
+    // private void StartPlayerCountMonitoring()
+    // {
+    //     ...
+    // }
+    // private System.Collections.IEnumerator MonitorPlayerCount()
+    // {
+    //     ...
+    // }
   
 
     public override void Exit()
     {
-        // 코루틴 정리
-        if (m_ConnectionStatusCheckCoroutine != null)
-        {
-            m_ConnectionManager.StopCoroutine(m_ConnectionStatusCheckCoroutine);
-            m_ConnectionStatusCheckCoroutine = null;
-        }
+        // 코루틴 정리 로직 제거
+        // if (m_ConnectionStatusCheckCoroutine != null)
+        // {
+        //     m_ConnectionManager.StopCoroutine(m_ConnectionStatusCheckCoroutine);
+        //     m_ConnectionStatusCheckCoroutine = null;
+        // }
         
-        _isSceneLoaded = false;
+        // _isSceneLoaded 플래그 관련 로직 제거
+        // _isSceneLoaded = false;
         
         // 세션 정리
         SessionManager<SessionPlayerData>.Instance.OnServerEnded();
@@ -144,8 +117,8 @@ class HostingState : OnlineState
             Debug.LogError($"[HostingState] 클라이언트 {clientId} 세션 데이터 설정 중 오류: {e.Message}");
         }
         
-        // 플레이어 수 확인 및 씬 전환
-        CheckPlayersAndLoadScene();
+        // 플레이어 수 확인 및 씬 전환 로직 제거
+        // CheckPlayersAndLoadScene();
     }
 
     public override void OnClientDisconnect(ulong clientId)
@@ -198,9 +171,18 @@ class HostingState : OnlineState
     {
         Debug.Log($"[HostingState] 클라이언트 승인 요청: ClientID={request.ClientNetworkId}");
         
+        // 최대 연결 수 확인
+        if (m_ConnectionManager.NetworkManager.ConnectedClientsIds.Count >= m_ConnectionManager.MaxConnectedPlayers)
+        {
+            response.Approved = false;
+            response.Reason = JsonUtility.ToJson(ConnectStatus.ServerFull);
+            Debug.LogWarning($"[HostingState] 연결 거부: 서버가 가득 찼습니다. (ClientID: {request.ClientNetworkId})");
+            return; // 추가 처리 중단
+        }
+        
         try
         {
-            // 무조건 승인 - 가장 단순한 방식으로 모든 클라이언트 허용
+            // 연결 승인
             float randomX = UnityEngine.Random.Range(-10f, 10f);
             float randomZ = UnityEngine.Random.Range(-10f, 10f);
             Vector3 spawnPosition = new Vector3(randomX, 0f, randomZ); // Y는 0으로 가정
@@ -215,49 +197,19 @@ class HostingState : OnlineState
 
             Debug.Log($"[HostingState] 클라이언트 승인 완료: ClientID={request.ClientNetworkId}, SpawnPosition={spawnPosition}");
 
-            
-            
-            // 추가: 플레이어 데이터 설정 시도
+            // 페이로드 관련 로직은 그대로 유지 (필요하다면)
             // if (request.Payload != null && request.Payload.Length > 0)
             // {
-            //     try
-            //     {
-            //         var payload = System.Text.Encoding.UTF8.GetString(request.Payload);
-            //         var connectionPayload = JsonUtility.FromJson<ConnectionPayload>(payload);
-                    
-            //         if (connectionPayload != null && !string.IsNullOrEmpty(connectionPayload.playerId))
-            //         {
-            //             // 페이로드에서 플레이어 데이터를 추출하여 설정
-            //             SessionManager<SessionPlayerData>.Instance.SetupConnectingPlayerSessionData(
-            //                 request.ClientNetworkId, 
-            //                 connectionPayload.playerId,
-            //                 new SessionPlayerData(
-            //                     request.ClientNetworkId, 
-            //                     connectionPayload.playerName ?? $"Player_{request.ClientNetworkId}", 
-            //                     new NetworkGuid(), 
-            //                     0, 
-            //                     true
-            //                 )
-            //             );
-                        
-            //             Debug.Log($"[HostingState] 클라이언트 {request.ClientNetworkId}의 플레이어 데이터 설정됨: {connectionPayload.playerName}");
-            //         }
-            //     }
-            //     catch (Exception e)
-            //     {
-            //         // 페이로드 파싱 중 오류가 발생해도 연결은 승인
-            //         Debug.LogWarning($"[HostingState] 페이로드 파싱 중 오류 (무시됨): {e.Message}");
-            //     }
+            //     ...
             // }
         }
-        catch (Exception ex)
+        catch (Exception e)
         {
-            // 오류가 발생해도 최대한 연결 승인 시도
-            Debug.LogError($"[HostingState] 승인 처리 중 오류: {ex.Message}, 연결 강제 승인 시도");
-            response.Approved = true;
-            response.CreatePlayerObject = true;
-            response.Position = Vector3.zero;
-            response.Rotation = Quaternion.identity;
+            // 예외 발생 시 연결 거부
+            response.Approved = false;
+            response.Reason = JsonUtility.ToJson(ConnectStatus.GenericDisconnect);
+            Debug.LogError($"[HostingState] 클라이언트 승인 중 오류 발생: {e.Message} (ClientID: {request.ClientNetworkId})");
+            // 추가적으로 오류 처리가 필요할 수 있음
         }
     }
 }
