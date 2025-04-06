@@ -1,7 +1,9 @@
 using System;
+using System.Linq; // LastOrDefault를 사용하기 위해 추가
 using Unity.Netcode;
 using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 
 // PlayerSnakeController가 NetworkBehaviour를 상속하는지 확인하세요.
 public class PlayerSnakeController : NetworkBehaviour
@@ -9,6 +11,12 @@ public class PlayerSnakeController : NetworkBehaviour
     // --- 컴포넌트 참조 ---
     [Header("Core Components")]
     [SerializeField] private Snake _snake; // 실제 스네이크 로직 담당 (움직임, 외형 등)
+    [SerializeField] private GameObject _bodyDetailPrefab; // Body 세그먼트 프리팹
+    
+    // --- 2048 게임 관련 변수 ---
+    [Header("2048 Game Settings")]
+    [SerializeField] private int _valueIncrement = 2; // Apple 획득 시 증가하는 값 (기본값: 2)
+    [SerializeField] private float _segmentSpacing = 1f; // 세그먼트 간 간격
 
     // --- 네트워크 동기화 변수 ---
     // 서버 -> 클라이언트로 동기화될 변수들 (예시)
@@ -16,6 +24,9 @@ public class PlayerSnakeController : NetworkBehaviour
     private NetworkVariable<int> _networkScore = new NetworkVariable<int>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
     private NetworkVariable<int> _networkSize = new NetworkVariable<int>(1, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
     private NetworkVariable<NetworkString> _networkPlayerId = new NetworkVariable<NetworkString>("", NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server); // 고유 ID 동기화용
+    
+    // 2048 게임을 위한 네트워크 변수 추가
+    private NetworkVariable<int> _networkHeadValue = new NetworkVariable<int>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
     public override void OnNetworkSpawn()
     {
@@ -31,10 +42,12 @@ public class PlayerSnakeController : NetworkBehaviour
             _networkScore.OnValueChanged += OnScoreChanged;
             _networkSize.OnValueChanged += OnSizeChanged;
             _networkPlayerId.OnValueChanged += OnPlayerIdChanged;
+            _networkHeadValue.OnValueChanged += OnHeadValueChanged; // 2048 게임용 값 변경 구독
 
              UpdateScoreUI(_networkScore.Value);
              UpdateSnakeBodySize(_networkSize.Value);
              UpdateUniqueIdComponent(_networkPlayerId.Value);
+             UpdateSnakeHeadValue(_networkHeadValue.Value); // 초기 Head 값 설정
         }
 
         // --- Owner 클라이언트 전용 설정 (Coroutine으로 분리) ---
@@ -66,11 +79,13 @@ public class PlayerSnakeController : NetworkBehaviour
             string playerId = "Player_" + OwnerClientId; // 예시: SessionManager에서 가져와야 함
             int initialScore = 0; // 예시: SessionManager에서 가져오거나 기본값
             int initialSize = 1; // 예시
+            int initialHeadValue = 0; // 2048 게임 초기 값
 
             // NetworkVariable 값 설정 (클라이언트로 동기화됨)
             _networkPlayerId.Value = playerId;
             _networkScore.Value = initialScore;
             _networkSize.Value = initialSize;
+            _networkHeadValue.Value = initialHeadValue;
 
             // 서버 측에서 리더보드 등 업데이트
             // _leaderboardService?.UpdateLeader(playerId, initialScore); // 예시
@@ -137,6 +152,20 @@ public class PlayerSnakeController : NetworkBehaviour
         // RemoteSnake의 ChangeSize/ProcessChangeSizeTo 의도 반영
         // 실제 몸통 조절은 여기서 수행
     }
+    
+    // 2048 게임용 Head 값 변경 콜백
+    private void OnHeadValueChanged(int previousValue, int newValue)
+    {
+        Debug.Log($"[PlayerSnakeController] Head 값 변경 감지: {previousValue} -> {newValue}");
+        UpdateSnakeHeadValue(newValue);
+        
+        // 2의 제곱수에 도달하면 몸통 세그먼트 추가
+        if (IsClient && IsPowerOfTwo(newValue) && newValue > 0)
+        {
+            // 클라이언트에서는 단순히 시각적 처리만 수행 (실제 추가는 서버에서 함)
+            Debug.Log($"[PlayerSnakeController] 2의 제곱수({newValue}) 도달 - 세그먼트 추가 준비");
+        }
+    }
 
      private void OnPlayerIdChanged(NetworkString previousValue, NetworkString newValue)
     {
@@ -167,7 +196,16 @@ public class PlayerSnakeController : NetworkBehaviour
         //      Debug.Log($"UniqueId 컴포넌트 업데이트: {playerId}");
         // }
      }
-
+     
+    // 2048 게임용 Snake Head 값 업데이트
+    private void UpdateSnakeHeadValue(int value)
+    {
+        if (_snake != null)
+        {
+            _snake.UpdateHeadValue(value);
+            Debug.Log($"Snake Head 값 업데이트: {value}");
+        }
+    }
 
     // --- 정리 로직 ---
     public override void OnNetworkDespawn()
@@ -183,6 +221,7 @@ public class PlayerSnakeController : NetworkBehaviour
             _networkScore.OnValueChanged -= OnScoreChanged;
             _networkSize.OnValueChanged -= OnSizeChanged;
             _networkPlayerId.OnValueChanged -= OnPlayerIdChanged;
+            _networkHeadValue.OnValueChanged -= OnHeadValueChanged; // 2048 게임용 구독 해제
         }
 
         // 서버에서 리더보드 등 정리 (필요 시)
@@ -208,6 +247,118 @@ public class PlayerSnakeController : NetworkBehaviour
          if (!IsServer) return;
          _networkSize.Value = newSize;
      }
+     
+    // 2048 게임용 - Apple 획득 시 Head 값 증가 (서버 전용)
+    [ServerRpc(RequireOwnership = false)] // Apple이 서버에서 직접 호출할 수 있도록 RequireOwnership = false
+    public void IncreaseHeadValueServerRpc(int increment)
+    {
+        if (!IsServer) return;
+        
+        // 현재 값에서 증가
+        int currentValue = _networkHeadValue.Value;
+        int newValue = currentValue + increment;
+        _networkHeadValue.Value = newValue;
+        
+        Debug.Log($"[PlayerSnakeController] Head 값 증가: {currentValue} -> {newValue}");
+        
+        // 2의 제곱수에 도달하면 Body 세그먼트 추가
+        if (IsPowerOfTwo(newValue) && newValue > 0)
+        {
+            // 이전 값(현재 값의 1/2)으로 새 세그먼트 추가
+            AddBodySegmentServerRpc(newValue / 2);
+            Debug.Log($"[PlayerSnakeController] 2의 제곱수({newValue}) 도달 - 몸통 세그먼트 추가");
+        }
+        
+        // 점수도 함께 증가
+        _networkScore.Value += increment;
+    }
+    
+    // Body 세그먼트 추가 (서버 전용)
+    [ServerRpc]
+    private void AddBodySegmentServerRpc(int value)
+    {
+        if (!IsServer) return;
+        
+        // 새 세그먼트 스폰 위치 계산 (마지막 세그먼트 뒤에 배치)
+        Vector3 spawnPosition;
+        
+        if (_snake.Body.Size > 0)
+        {
+            // 마지막 세그먼트 위치 기준으로 설정
+            // IEnumerable에서 마지막 요소 가져오기
+            Vector3 lastPosition = Vector3.zero;
+            foreach (Vector3 pos in _snake.GetBodyDetailPositions())
+            {
+                lastPosition = pos; // 마지막 요소 저장
+            }
+            spawnPosition = lastPosition - _snake.transform.forward * _segmentSpacing;
+        }
+        else
+        {
+            // 첫 세그먼트는 헤드 뒤에 배치
+            spawnPosition = _snake.Head.transform.position - _snake.Head.transform.forward * _segmentSpacing;
+        }
+        
+        // 세그먼트 인스턴스 생성
+        GameObject newSegment = Instantiate(_bodyDetailPrefab, spawnPosition, _snake.transform.rotation);
+        NetworkObject netObj = newSegment.GetComponent<NetworkObject>();
+        if (netObj != null)
+        {
+            netObj.Spawn(); // 네트워크에 스폰
+            
+            // Snake에 세그먼트 추가 및 값 설정
+            _snake.AddDetailWithValue(newSegment, value);
+            
+            // 크기 증가 네트워크 동기화
+            _networkSize.Value++;
+            
+            // 클라이언트에 세그먼트 값 동기화
+            SyncSegmentValueClientRpc(_networkSize.Value - 1, value);
+        }
+    }
+    
+    // 세그먼트 값 클라이언트 동기화
+    [ClientRpc]
+    private void SyncSegmentValueClientRpc(int segmentIndex, int value)
+    {
+        Debug.Log($"[PlayerSnakeController] 세그먼트 동기화: 인덱스 {segmentIndex}, 값 {value}");
+        
+        // 클라이언트에서는 값만 설정
+        // 실제 세그먼트 추가는 _networkSize 변경 이벤트에서 이루어짐
+    }
+    
+    // 충돌 감지 (Apple 등)
+    private void OnTriggerEnter(Collider other)
+    {
+        // 서버에서만 처리
+        if (!IsServer) return;
+        
+        // Apple인지 확인
+        if (other.CompareTag("Apple"))
+        {
+            Debug.Log($"[PlayerSnakeController] Apple과 충돌 감지!");
+            
+            // Head 값 증가
+            IncreaseHeadValueServerRpc(_valueIncrement);
+            
+            // Apple 제거 (Apple 스크립트 측에서 처리하도록 설계할 수도 있음)
+            NetworkObject appleNetObj = other.GetComponent<NetworkObject>();
+            if (appleNetObj != null)
+            {
+                appleNetObj.Despawn();
+                
+                // 새 Apple 스폰 요청 (AppleManager가 있다면)
+                AppleManager appleManager = FindObjectOfType<AppleManager>();
+                appleManager?.SpawnAppleServerRpc();
+            }
+        }
+    }
+    
+    // 2의 거듭제곱인지 확인
+    private bool IsPowerOfTwo(int x)
+    {
+        return x != 0 && (x & (x - 1)) == 0;
+    }
 
     // --- NetworkString 정의 (NetworkVariable에서 사용) ---
     // 별도 파일로 빼거나 PlayerSnakeController 내부에 둘 수 있음

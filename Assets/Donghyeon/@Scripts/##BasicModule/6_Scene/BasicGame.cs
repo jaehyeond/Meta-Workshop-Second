@@ -24,6 +24,11 @@ public class BasicGameScene : BaseScene
     // VContainer.IObjectResolver 추가
     [Inject] private VContainer.IObjectResolver _container;
     [Inject] private BasicGameState _basicGameState;
+    [Inject] private ResourceManager _resourceManager;
+    
+    // AppleManager 참조 추가
+    private AppleManager _appleManager;
+    
 	// greenslime 몬스터 ID
 	public int MONSTER_ID = 202001;
 	
@@ -62,8 +67,53 @@ public class BasicGameScene : BaseScene
             _mapSpawnerFacade.Load();
             _mapSpawnerFacade.LoadMap();
         }
+        
+        // AppleManager 생성 및 초기화
+        InitializeAppleManager();
       
         return true;
+    }
+
+    // AppleManager 초기화 메서드
+    private void InitializeAppleManager()
+    {
+        if (_resourceManager == null)
+        {
+            Debug.LogError("[BasicGameScene] ResourceManager가 null입니다.");
+            return;
+        }
+        
+        // AppleManager 프리팹 로드 및 생성
+        GameObject appleManagerPrefab = _resourceManager.Load<GameObject>("Prefabs/InGame/AppleManager");
+        if (appleManagerPrefab == null)
+        {
+            Debug.LogError("[BasicGameScene] AppleManager 프리팹을 찾을 수 없습니다.");
+            
+            // 프리팹이 없으면 빈 오브젝트 생성
+            GameObject newObj = new GameObject("AppleManager");
+            _appleManager = newObj.AddComponent<AppleManager>();
+        }
+        else
+        {
+            // 프리팹 인스턴스화
+            GameObject instance = Instantiate(appleManagerPrefab);
+            instance.name = "AppleManager";
+            _appleManager = instance.GetComponent<AppleManager>();
+        }
+        
+        // VContainer를 통한 의존성 주입
+        if (_appleManager != null && _container != null)
+        {
+            _container.Inject(_appleManager);
+            
+            // NetworkObject 확인 및 스폰
+            NetworkObject netObj = _appleManager.GetComponent<NetworkObject>();
+            if (netObj != null && NetworkManager.Singleton.IsServer)
+            {
+                netObj.Spawn();
+                Debug.Log("[BasicGameScene] AppleManager 네트워크 스폰 완료");
+            }
+        }
     }
 
     public override void Clear()
@@ -78,6 +128,7 @@ public class BasicGameScene : BaseScene
         _objectManagerFacade = null;
         _mapSpawnerFacade = null;
         _basicGameState = null;
+        _appleManager = null;
     }
 
     private void OnEnable()
