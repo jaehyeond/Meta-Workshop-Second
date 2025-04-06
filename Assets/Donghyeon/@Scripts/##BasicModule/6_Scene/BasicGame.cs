@@ -33,8 +33,6 @@ public class BasicGameScene : BaseScene
 	
     private bool _isEventsSubscribed = false;
     
-    private AppleManager _appleManager;
-
     public override bool Init()
     {
         if (base.Init() == false)
@@ -44,9 +42,21 @@ public class BasicGameScene : BaseScene
  
       	_uiManager.ShowBaseUI<UI_Joystick>();
       	
-      	// AppleManager 초기화
-      	InitializeAppleManager();
-
+        // AppleManager 생성
+        if (NetworkManager.Singleton.IsServer)
+        {
+            GameObject appleManagerPrefab = _resourceManager.Load<GameObject>("Prefabs/InGame/AppleManager");
+            if (appleManagerPrefab != null)
+            {
+                GameObject appleManager = Instantiate(appleManagerPrefab);
+                NetworkObject networkObject = appleManager.GetComponent<NetworkObject>();
+                if (networkObject != null)
+                {
+                    networkObject.Spawn();
+                }
+            }
+        }
+      	
         return true;
     }
 
@@ -73,57 +83,6 @@ public class BasicGameScene : BaseScene
     private void UnsubscribeEvents()
     {
 
-    }
-    
-    /// <summary>
-    /// AppleManager를 초기화합니다.
-    /// </summary>
-    private void InitializeAppleManager()
-    {
-        if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer)
-            return; // 서버에서만 실행
-        
-        try
-        {
-            // 프리팹 로드
-            GameObject appleManagerPrefab = _resourceManager.Load<GameObject>("Prefabs/InGame/AppleManager");
-            
-            if (appleManagerPrefab == null)
-            {
-                Debug.LogError("[BasicGameScene] AppleManager 프리팹을 로드할 수 없습니다!");
-                return;
-            }
-            
-            // AppleManager 생성
-            GameObject appleManagerObj = Instantiate(appleManagerPrefab, Vector3.zero, Quaternion.identity);
-            _appleManager = appleManagerObj.GetComponent<AppleManager>();
-            
-            if (_appleManager == null)
-            {
-                Debug.LogError("[BasicGameScene] 생성된 오브젝트에 AppleManager 컴포넌트가 없습니다!");
-                Destroy(appleManagerObj);
-                return;
-            }
-            
-            // VContainer를 통한 의존성 주입
-            FindObjectOfType<LifetimeScope>()?.Container.Inject(_appleManager);
-            
-            // NetworkObject 확인 및 스폰
-            NetworkObject networkObject = appleManagerObj.GetComponent<NetworkObject>();
-            if (networkObject != null && !networkObject.IsSpawned)
-            {
-                networkObject.Spawn();
-                Debug.Log("[BasicGameScene] AppleManager를 성공적으로 스폰했습니다.");
-            }
-            else
-            {
-                Debug.LogError("[BasicGameScene] AppleManager에 NetworkObject가 없거나 이미 스폰되었습니다.");
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError($"[BasicGameScene] AppleManager 초기화 중 오류: {ex.Message}\n{ex.StackTrace}");
-        }
     }
 }
 
