@@ -161,8 +161,8 @@ public class ObjectManager
     }
 
 
-    public HashSet<ServerMonster> Monsters { get; } = new HashSet<ServerMonster>();
-	public HashSet<ServerHero> Heroes { get; } = new HashSet<ServerHero>();
+    // public HashSet<ServerMonster> Monsters { get; } = new HashSet<ServerMonster>();
+	// public HashSet<ServerHero> Heroes { get; } = new HashSet<ServerHero>();
 	// public HashSet<Projectile> Projectiles { get; } = new HashSet<Projectile>();
 	// public HashSet<Env> Envs { get; } = new HashSet<Env>();
 	// public HashSet<EffectBase> Effects { get; } = new HashSet<EffectBase>();
@@ -265,13 +265,13 @@ public class ObjectManager
 			
 			case CharacterTypeEnum.Hero:
 				CreatureData = DataLoader.instance.HeroDic[templateID];
-				ClientHero clientHero = go.GetComponent<ClientHero>();
-				HeroAvatarSO clientHeroAvatar = _resourceManager.Load<HeroAvatarSO>(CreatureData.ClientAvatar);
-				clientHero.SetAvatar(clientHeroAvatar,  CreatureData.SkeletonDataID, _resourceManager);
+				// ClientHero clientHero = go.GetComponent<ClientHero>();
+				// HeroAvatarSO clientHeroAvatar = _resourceManager.Load<HeroAvatarSO>(CreatureData.ClientAvatar);
+				// clientHero.SetAvatar(clientHeroAvatar,  CreatureData.SkeletonDataID, _resourceManager);
 
-				ServerHero serverHero = go.GetComponent<ServerHero>();				
-				serverHero.SetInfo(templateID, CreatureData, clientHero);
-				Heroes.Add(serverHero);
+				// ServerHero serverHero = go.GetComponent<ServerHero>();				
+				// serverHero.SetInfo(templateID, CreatureData, clientHero);
+				// Heroes.Add(serverHero);
 				break;
 			default:
 				_debugClassFacade?.LogWarning(GetType().Name, $"[ObjectManager] 알 수 없는 CreatureType: {creature.CreatureType}");
@@ -317,32 +317,32 @@ public class ObjectManager
 
 		NetworkObject networkObject = go.GetComponent<NetworkObject>();
 
-		try 
-		{
-			if (!networkObject.IsSpawned && NetworkManager.Singleton.IsServer)
-			{
-				networkObject.Spawn();
-				_debugClassFacade?.LogInfo(GetType().Name, $"[ObjectManager] NetworkObject 스폰 완료: {networkObject.NetworkObjectId}");
-			}
-			if (typeof(T) == typeof(ServerMonster))
-			{
-				// 스폰 후 부모 설정 - 이 순서가 중요합니다
-				go.transform.SetParent(MonsterRoot);
+		// try 
+		// {
+		// 	if (!networkObject.IsSpawned && NetworkManager.Singleton.IsServer)
+		// 	{
+		// 		networkObject.Spawn();
+		// 		_debugClassFacade?.LogInfo(GetType().Name, $"[ObjectManager] NetworkObject 스폰 완료: {networkObject.NetworkObjectId}");
+		// 	}
+		// 	if (typeof(T) == typeof(ServerMonster))
+		// 	{
+		// 		// 스폰 후 부모 설정 - 이 순서가 중요합니다
+		// 		go.transform.SetParent(MonsterRoot);
 
-				_debugClassFacade?.LogInfo(GetType().Name, $"[ObjectManager] 몬스터 @Monsters에 배치 완료: {go.name}");
-			}
-			var eventData = new MonsterSpawnEventData(go, prefabName, position, clientID);
-			eventData.NetworkObjectId = networkObject.NetworkObjectId;
+		// 		_debugClassFacade?.LogInfo(GetType().Name, $"[ObjectManager] 몬스터 @Monsters에 배치 완료: {go.name}");
+		// 	}
+		// 	var eventData = new MonsterSpawnEventData(go, prefabName, position, clientID);
+		// 	eventData.NetworkObjectId = networkObject.NetworkObjectId;
 			
-			// 네트워크 스폰 완료 이벤트 발생
-			_spawnMediator.Notify(NetworkEventType.NetworkSpawned, eventData);
-		}
-		catch (Exception e)
-		{
-			_debugClassFacade?.LogError(GetType().Name, $"[ObjectManager] NetworkObject 스폰 중 오류 발생: {e.Message}");
-			_resourceManager.Destroy(go);
-			return null;
-		}
+		// 	// 네트워크 스폰 완료 이벤트 발생
+		// 	_spawnMediator.Notify(NetworkEventType.NetworkSpawned, eventData);
+		// }
+		// catch (Exception e)
+		// {
+		// 	_debugClassFacade?.LogError(GetType().Name, $"[ObjectManager] NetworkObject 스폰 중 오류 발생: {e.Message}");
+		// 	_resourceManager.Destroy(go);
+		// 	return null;
+		// }
 
 
 		return obj as T;
@@ -361,12 +361,12 @@ public class ObjectManager
 			switch (creature.CreatureType)
 			{
 				case CharacterTypeEnum.Hero:
-					ServerHero hero = creature as ServerHero;
-					Heroes.Remove(hero);
+					// ServerHero hero = creature as ServerHero;
+					// Heroes.Remove(hero);
 					break;
 				case CharacterTypeEnum.Monster:
-					ServerMonster monster = creature as ServerMonster;
-					Monsters.Remove(monster);
+					// ServerMonster monster = creature as ServerMonster;
+					// Monsters.Remove(monster);
 					break;
 			}
 		}

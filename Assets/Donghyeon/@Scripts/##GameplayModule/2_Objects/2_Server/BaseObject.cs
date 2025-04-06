@@ -109,15 +109,15 @@ namespace Unity.Assets.Scripts.Objects
         protected void Awake(){}
 
 
-        public virtual void OnDamaged(BaseObject attacker, SkillBase skill)
-        {
-            // HurtFlash.Flash();
-        }
+        // public virtual void OnDamaged(BaseObject attacker, SkillBase skill)
+        // {
+        //     // HurtFlash.Flash();
+        // }
 
-        public virtual void OnDead(BaseObject attacker, SkillBase skill)
-        {
-            // HurtFlash.Flash();
-        }
+        // public virtual void OnDead(BaseObject attacker, SkillBase skill)
+        // {
+        //     // HurtFlash.Flash();
+        // }
         // public void Flip(bool flag)
         // {
         //     //Sprite 도 추가향함    

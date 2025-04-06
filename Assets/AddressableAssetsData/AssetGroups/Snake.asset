@@ -1,0 +1,53 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: Snake
+  m_EditorClassIdentifier: 
+  m_GroupName: Snake
+  m_GUID: 9565622ec4d77c64d9ef25a4820d6735
+  m_SerializeEntries:
+  - m_GUID: 19a07308783ea8c458259b8af17f8ff3
+    m_Address: Player Aim
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - PreLoad
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3046074cc56344e41abea03b394f95f9
+    m_Address: SnakeStaticData
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - PreLoad
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 53b455a24a377464b8de74f2900c2c36
+    m_Address: Remote Snake
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - PreLoad
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 92d29e5303d288144bb88d5bdb95f3e4
+    m_Address: Body Detail
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - PreLoad
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e2c5c73fa4a18514c986e5c9dffaa29d
+    m_Address: Player Snake
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - PreLoad
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
+  m_Settings: {fileID: 11400000, guid: 6e1f597277e8e9241937a22b340fdf84, type: 2}
+  m_SchemaSet:
+    m_Schemas:
+    - {fileID: 11400000, guid: df9162d6e4e06194aa532118b04a1598, type: 2}
+    - {fileID: 11400000, guid: fe3c7d5f96a11db47bb772ec84f9c2d6, type: 2}

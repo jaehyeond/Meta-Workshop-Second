@@ -26,7 +26,6 @@ public class Creature : BaseObject, ITargetable
 		get { return _isNpc; } 
 		set { _isNpc = value; }
 	}
-	public SkillComponent Skills { get; protected set; }
 	public BaseObject Target { get; protected set; }
 
     public bool IsValidTarget => LifeState != LifeState.Dead;
@@ -176,22 +175,7 @@ public class Creature : BaseObject, ITargetable
         
         CreatureState = ECreatureState.Idle;
 
-        try
-        {
-                Skills = gameObject.GetComponent<SkillComponent>();
-                if (Skills == null)
-                {
-                    Skills = gameObject.AddComponent<SkillComponent>();
-                    Debug.Log($"[{name}] SkillComponent가 추가되었습니다.");
-                }
-                
-                Skills.SetInfo(this, creatureData, clientCreature as ClientCreature);
-        }
-        catch (System.Exception e)
-        {
-                Debug.LogError($"[{name}] SkillComponent 추가 중 오류: {e.Message}");
-        }
-
+ 
         if (Collider != null)
         {
             Collider.offset = new Vector2(creatureData.ColliderOffsetX, creatureData.ColliderOffsetY);
@@ -330,41 +314,41 @@ public class Creature : BaseObject, ITargetable
 
         protected virtual void UpdateDead() { }
        
-       	public override void OnDamaged(BaseObject attacker, SkillBase skill)
-	    {
-		base.OnDamaged(attacker, skill);
+    //    	public override void OnDamaged(BaseObject attacker, SkillBase skill)
+	//     {
+	// 	base.OnDamaged(attacker, skill);
 
-		if (attacker.IsValid() == false)
-			return;
-		Creature creature = attacker as Creature;
-		if (creature == null)
-			return;
+	// 	if (attacker.IsValid() == false)
+	// 		return;
+	// 	Creature creature = attacker as Creature;
+	// 	if (creature == null)
+	// 		return;
 
-		float finalDamage = creature.Atk.Value;
-		Hp = Mathf.Clamp(Hp - finalDamage, 0, MaxHp.Value);
+	// 	float finalDamage = creature.Atk.Value;
+	// 	Hp = Mathf.Clamp(Hp - finalDamage, 0, MaxHp.Value);
 
-		_objectManager.ShowDamageFont(CenterPosition, finalDamage, transform, false);
+	// 	_objectManager.ShowDamageFont(CenterPosition, finalDamage, transform, false);
 
-		if (Hp <= 0)
-		{
-			OnDead(attacker, skill);
-			CreatureState = ECreatureState.Dead;
-			return;
-		}
+	// 	if (Hp <= 0)
+	// 	{
+	// 		OnDead(attacker, skill);
+	// 		CreatureState = ECreatureState.Dead;
+	// 		return;
+	// 	}
 
-		// // 스킬에 따른 Effect 적용
-		// if (skill.SkillData.EffectIds != null)
-		// 	Effects.GenerateEffects(skill.SkillData.EffectIds.ToArray(), EEffectSpawnType.Skill, skill);
+	// 	// // 스킬에 따른 Effect 적용
+	// 	// if (skill.SkillData.EffectIds != null)
+	// 	// 	Effects.GenerateEffects(skill.SkillData.EffectIds.ToArray(), EEffectSpawnType.Skill, skill);
 
-		// // AOE
-		// if (skill != null && skill.SkillData.AoEId != 0)
-		// 	skill.GenerateAoE(transform.position);
-	}
+	// 	// // AOE
+	// 	// if (skill != null && skill.SkillData.AoEId != 0)
+	// 	// 	skill.GenerateAoE(transform.position);
+	// }
 
-        public override void OnDead(BaseObject attacker, SkillBase skill)
-        {
-            base.OnDead(attacker, skill);
-        }
+    //     public override void OnDead(BaseObject attacker, SkillBase skill)
+    //     {
+    //         base.OnDead(attacker, skill);
+    //     }
        
        
        

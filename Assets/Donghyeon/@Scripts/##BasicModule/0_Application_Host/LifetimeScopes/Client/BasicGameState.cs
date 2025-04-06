@@ -40,7 +40,7 @@ public class BasicGameState : GameStateLifetimeScope
     [Header("Game Settings")]
     public int HeroCount;
     public int HeroMaximumCount = 25;
-    public List<ServerMonster> monsters = new List<ServerMonster>();
+    // public List<ServerMonster> monsters = new List<ServerMonster>();
     public int UpgradeMoney = 100;
     public int MonsterLimitCount = 100;
     private float _nextWaveTimer = 60.0f;  // 웨이브 시간 설정
@@ -434,37 +434,37 @@ public class BasicGameState : GameStateLifetimeScope
     /// </summary>
     /// <param name="monster">제거할 몬스터</param>
     /// <param name="Boss">보스 여부</param>
-    public void RemoveMonster(ServerMonster monster, bool Boss = false)
-    {
-        if (!IsServerReady() || _networkHandler == null) return;
+    // public void RemoveMonster(ServerMonster monster, bool Boss = false)
+    // {
+    //     if (!IsServerReady() || _networkHandler == null) return;
         
-        if (monster != null && monsters.Contains(monster))
-        {
-            monsters.Remove(monster);
-            _monsterCount = monsters.Count;
+    //     if (monster != null && monsters.Contains(monster))
+    //     {
+    //         monsters.Remove(monster);
+    //         _monsterCount = monsters.Count;
             
-            _networkHandler.UpdateMonsterCountClientRpc(_monsterCount);
-            Debug.Log($"[BasicGameState] 몬스터 제거: 현재 몬스터 수: {_monsterCount}");
-        }
-    }
+    //         _networkHandler.UpdateMonsterCountClientRpc(_monsterCount);
+    //         Debug.Log($"[BasicGameState] 몬스터 제거: 현재 몬스터 수: {_monsterCount}");
+    //     }
+    // }
     
-    /// <summary>
-    /// 몬스터 추가 메서드
-    /// </summary>
-    /// <param name="monster">추가할 몬스터</param>
-    public void SetMonster(ServerMonster monster)
-    {
-        if (!IsServerReady() || _networkHandler == null) return;
+    // /// <summary>
+    // /// 몬스터 추가 메서드
+    // /// </summary>
+    // /// <param name="monster">추가할 몬스터</param>
+    // public void SetMonster(ServerMonster monster)
+    // {
+    //     if (!IsServerReady() || _networkHandler == null) return;
         
-        if (monster != null && !monsters.Contains(monster))
-        {
-            monsters.Add(monster);
-            _monsterCount = monsters.Count;
+    //     if (monster != null && !monsters.Contains(monster))
+    //     {
+    //         monsters.Add(monster);
+    //         _monsterCount = monsters.Count;
             
-            _networkHandler.UpdateMonsterCountClientRpc(_monsterCount);
-            Debug.Log($"[BasicGameState] 몬스터 추가: 현재 몬스터 수: {_monsterCount}");
-        }
-    }
+    //         _networkHandler.UpdateMonsterCountClientRpc(_monsterCount);
+    //         Debug.Log($"[BasicGameState] 몬스터 추가: 현재 몬스터 수: {_monsterCount}");
+    //     }
+    // }
     
     /// <summary>
     /// 게임 오버 이벤트 발생

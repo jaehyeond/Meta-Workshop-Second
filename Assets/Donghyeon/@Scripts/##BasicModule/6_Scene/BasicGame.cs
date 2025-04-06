@@ -28,7 +28,6 @@ public class BasicGameScene : BaseScene
 	public int MONSTER_ID = 202001;
 	
 	// 스폰된 몬스터 관리 리스트
-	private List<ServerMonster> _spawnedMonsters = new List<ServerMonster>();
 
     // OnGridSpawned 이벤트가 너무 일찍 호출되는 것을 방지하기 위한 플래그
     private bool _isInitialized = false;
@@ -106,7 +105,6 @@ public class BasicGameScene : BaseScene
 
     private void OnSummonButtonRequested()
     {   
-        _objectManagerFacade.Summon();
         Debug.Log("[BasicGameScene] OnSummonButtonRequested");
     }
 
@@ -114,7 +112,6 @@ public class BasicGameScene : BaseScene
     {
    
         
-         _objectManagerFacade.Spawn_Monster(false, 202001);
     }
 
 
