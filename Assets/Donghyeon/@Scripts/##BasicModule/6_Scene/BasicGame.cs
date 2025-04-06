@@ -47,7 +47,30 @@ public class BasicGameScene : BaseScene
 
         SceneType = EScene.BasicGame;
  
-      	_uiManager.ShowBaseUI<UI_Joystick>();
+        // UI_Joystick을 먼저 로드하고 활성화
+      	var joystickUI = _uiManager.ShowBaseUI<UI_Joystick>();
+        if (joystickUI != null)
+        {
+            Debug.Log("[BasicGameScene] UI_Joystick이 성공적으로 로드되었습니다.");
+            joystickUI.gameObject.SetActive(true);
+        }
+        else
+        {
+            Debug.LogError("[BasicGameScene] UI_Joystick을 로드하지 못했습니다!");
+            // 직접 로드 시도
+            try {
+                GameObject joystickPrefab = _resourceManager.Load<GameObject>("UI/UI_Joystick");
+                if (joystickPrefab != null)
+                {
+                    GameObject instance = Instantiate(joystickPrefab);
+                    instance.name = "UI_Joystick";
+                    Debug.Log("[BasicGameScene] UI_Joystick 수동 생성 성공");
+                }
+            }
+            catch (Exception e) {
+                Debug.LogError($"[BasicGameScene] UI_Joystick 수동 생성 실패: {e.Message}");
+            }
+        }
 
         // if (_basicGameState != null)
         // {

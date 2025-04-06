@@ -7,59 +7,24 @@ using System.Collections.Generic;
 using VContainer; // LifetimeScope 및 Container 관련
 using Unity.Assets.Scripts.Resource; // ResourceManager에 접근하기 위해 추가
 using Unity.Assets.Scripts.UI; // UI 네임스페이스 추가
-using Unity.Assets.Scripts.GameManager; // GameManager 네임스페이스 추가
+using Donghyeon.GameplayModule.Input; // 조이스틱 입력 네임스페이스 추가
+// GameManager는 루트 네임스페이스에 있으므로 별도 using 문이 필요 없음
 
-// 조이스틱 컨트롤을 위한 인터페이스
-public interface ISnakeInputProvider
-{
-    Vector2 MovementDirection { get; }
-    event Action<Vector2> OnMovementDirectionChanged;
-}
-
-// 조이스틱 입력 제공자 클래스 (같은 파일에 추가)
-public class JoystickInputProvider : MonoBehaviour, ISnakeInputProvider
-{
-    [SerializeField] private UI_Joystick _joystick; // 인스펙터에서 할당
-    private Vector2 _direction;
-
-    public Vector2 MovementDirection => _direction;
-    
-    public event Action<Vector2> OnMovementDirectionChanged;
-
-    private void Update()
-    {
-        if (_joystick == null) return; // 조이스틱이 없으면 무시
-        
-        // 조이스틱의 방향 가져오기
-        Vector2 newDirection = Vector2.zero;
-        
-        if (_joystick != null && _joystick.GetComponent<UI_Joystick>() != null)
-        {
-            // UI_Joystick의 구현에 따라 방향을 가져오는 방식 조정
-            var joystick = _joystick.GetComponent<UI_Joystick>();
-            newDirection = joystick.GetJoystickDirection();
-        }
-        
-        // 방향이 변경되었는지 확인
-        if (Vector2.Distance(newDirection, _direction) > 0.01f)
-        {
-            _direction = newDirection;
-            OnMovementDirectionChanged?.Invoke(_direction);
-        }
-    }
-}
+// 인터페이스와 JoystickInputProvider 클래스는 별도 파일로 이동했으므로 제거
 
 // PlayerSnakeController가 NetworkBehaviour를 상속하는지 확인하세요.
 public class PlayerSnakeController : NetworkBehaviour
 {
     #region Dependencies
-    // GameManager는 Owner Client에서만 필요하므로 OnNetworkSpawn에서 Resolve
-    [Inject] private GameManager _gameManager;
+    // ResourceManager 의존성 주입
     [Inject] private ResourceManager _resourceManager;
     
     // 조이스틱 입력 제공자
     [SerializeField] private bool _useJoystickInput = true;
     private ISnakeInputProvider _inputProvider;
+    
+    // 방향 변경 이벤트 (GameManager에 의존하지 않는 방식)
+    public event Action<Vector2> OnDirectionChanged;
     #endregion
 
     #region Settings
@@ -90,9 +55,11 @@ public class PlayerSnakeController : NetworkBehaviour
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
+        Debug.Log($"[PlayerSnakeController] OnNetworkSpawn 호출됨! NetworkObjectId: {NetworkObjectId}, OwnerClientId: {OwnerClientId}");
 
         if (IsServer)
         {
+            Debug.Log($"[PlayerSnakeController] 서버 모드로 초기화 중...");
             InitializeServerState();
         }
 
@@ -104,31 +71,42 @@ public class PlayerSnakeController : NetworkBehaviour
             _networkPlayerId.OnValueChanged += OnPlayerIdChanged;
             _networkHeadValue.OnValueChanged += OnHeadValueChanged;
 
-             UpdateScoreUI(_networkScore.Value);
-             UpdateSnakeBodySize(_networkSize.Value);
-             UpdateUniqueIdComponent(_networkPlayerId.Value);
+            UpdateScoreUI(_networkScore.Value);
+            UpdateSnakeBodySize(_networkSize.Value);
+            UpdateUniqueIdComponent(_networkPlayerId.Value);
         }
 
         // --- Owner 클라이언트 전용 설정 (Coroutine으로 분리) ---
         if (IsOwner)
         {
-            InitializeOwnerClient();
-            
-            // 조이스틱 입력 설정
-            if (_useJoystickInput)
-            {
-                SetupJoystickInput();
-            }
+            Debug.Log($"[PlayerSnakeController] 오너 클라이언트 초기화 중...");
+            StartCoroutine(InitializeOwnerClient());
         }
         else
         {
+            Debug.Log($"[PlayerSnakeController] 원격 클라이언트 초기화 중...");
             InitializeRemoteClient();
         }
-
-        // 서버 측 정리 로직 (필요 시)
-        // if (IsServer) { /* ... */ }
-
-        Debug.Log($"[{GetType().Name}] OnNetworkSpawn 호출됨! NetworkObjectId: {NetworkObjectId}, OwnerClientId: {OwnerClientId}");
+    }
+    
+    private IEnumerator InitializeOwnerClient()
+    {
+        Debug.Log($"[PlayerSnakeController] Owner 클라이언트 초기화 시작.");
+        
+        // 카메라 설정 코루틴 시작
+        yield return StartCoroutine(FollowPlayerWithCamera());
+        
+        // 조이스틱 입력 설정 (1초 대기 후 시도)
+        yield return new WaitForSeconds(1.0f);
+        
+        // 조이스틱 입력 설정
+        if (_useJoystickInput)
+        {
+            Debug.Log($"[PlayerSnakeController] 조이스틱 입력 설정 시작...");
+            SetupJoystickInput();
+        }
+        
+        Debug.Log($"[PlayerSnakeController] Owner 클라이언트 초기화 완료!");
     }
     #endregion
 
@@ -145,11 +123,20 @@ public class PlayerSnakeController : NetworkBehaviour
             // 프로바이더가 없으면 생성
             GameObject joystickProviderGO = new GameObject("JoystickInputProvider");
             _inputProvider = joystickProviderGO.AddComponent<JoystickInputProvider>();
+            
+            // 생성 후 DontDestroyOnLoad 설정
+            DontDestroyOnLoad(joystickProviderGO);
+            
+            Debug.Log("[PlayerSnakeController] JoystickInputProvider 생성 완료!");
+        }
+        else
+        {
+            Debug.Log("[PlayerSnakeController] 기존 JoystickInputProvider를 사용합니다.");
         }
         
         // 조이스틱 입력 이벤트 구독
         _inputProvider.OnMovementDirectionChanged += HandleMoveDirChanged;
-        Debug.Log("조이스틱 입력 프로바이더에 구독 완료");
+        Debug.Log("[PlayerSnakeController] 조이스틱 입력 프로바이더에 구독 완료!");
     }
     
     // 조이스틱 입력 처리 메서드
@@ -220,13 +207,6 @@ public class PlayerSnakeController : NetworkBehaviour
         }
     }
 
-    private void InitializeOwnerClient()
-    {
-        Debug.Log($"[{GetType().Name}] Owner 클라이언트 초기화 시작.");
-        StartCoroutine(FollowPlayerWithCamera());
-        ResolveAndSubscribeToGameManager();
-    }
-
     private void InitializeRemoteClient()
     {
         Debug.Log($"[{GetType().Name}] 원격 클라이언트 초기화 시작 (다른 플레이어의 스네이크).");
@@ -246,27 +226,7 @@ public class PlayerSnakeController : NetworkBehaviour
         Debug.Log($"[{GetType().Name}] 카메라 설정 완료.");
     }
     
-    private void ResolveAndSubscribeToGameManager()
-    {
-        try {
-            // Donghyeon의 GameManager 이벤트 구독
-            if (_gameManager != null)
-            {
-                _gameManager.OnMoveDirChanged += HandleGameManagerMoveDirChanged;
-                Debug.Log($"[{GetType().Name}] GameManager 이벤트 구독 완료.");
-            }
-            else
-            {
-                Debug.LogWarning($"[{GetType().Name}] GameManager가 null입니다!");
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError($"[{GetType().Name}] GameManager 이벤트 구독 중 오류: {ex.Message}");
-        }
-    }
-    
-    // GameManager의 방향 변경 이벤트 처리
+    // 방향 변경 이벤트 처리 (GameManager 대체)
     private void HandleGameManagerMoveDirChanged(Vector2 direction)
     {
         if (!IsOwner || _snake == null) return;
@@ -283,6 +243,19 @@ public class PlayerSnakeController : NetworkBehaviour
             // 서버에 방향 변경 알림
             UpdateDirectionServerRpc(dir3D);
         }
+    }
+
+    // 방향 직접 설정 메서드 (외부에서 호출할 수 있는)
+    public void SetDirection(Vector2 direction)
+    {
+        // 조이스틱이 활성화된 경우 무시 (조이스틱이 우선)
+        if (_useJoystickInput && _inputProvider != null) return;
+        
+        // 방향 변경 이벤트 호출
+        OnDirectionChanged?.Invoke(direction);
+        
+        // 이벤트 핸들러 메서드 직접 호출
+        HandleGameManagerMoveDirChanged(direction);
     }
     #endregion
 
@@ -308,12 +281,7 @@ public class PlayerSnakeController : NetworkBehaviour
 
     private void UnsubscribeFromGameManagerEvents()
     {
-        // GameManager 이벤트 구독 해제
-        if (_gameManager != null)
-        {
-            _gameManager.OnMoveDirChanged -= HandleGameManagerMoveDirChanged;
-            Debug.Log($"[{GetType().Name}] GameManager 이벤트 구독 해지 완료.");
-        }
+        // 이벤트 구독 해제 코드 단순화
         
         // 조이스틱 입력 구독 해제
         if (_inputProvider != null)
@@ -546,15 +514,16 @@ public class PlayerSnakeController : NetworkBehaviour
 
         public bool Equals(NetworkString other) => _value.Equals(other._value);
     }
-}
 
-// UI_Joystick 확장 메서드 - 프로젝트에 맞게 조정할 것
-public static class UI_JoystickExtensions
-{
-    public static Vector2 GetJoystickDirection(this UI_Joystick joystick)
+    // Apple 충돌 처리를 위한 메서드 (ServerRpc)
+    [ServerRpc(RequireOwnership = false)] // 소유권이 없어도 호출 가능하도록 설정
+    public void IncreaseHeadValueServerRpc(int valueIncrement)
     {
-        // 프로젝트의 UI_Joystick 구현에 맞게 방향을 가져오는 방법을 구현
-        // 여기서는 기본 벡터를 반환
-        return Vector2.zero;
+        if (!IsServer) return;
+        
+        // 사과 획득 처리
+        OnAppleCollected(valueIncrement);
+        
+        Debug.Log($"[PlayerSnakeController] 사과 획득! 값 증가: {valueIncrement}");
     }
 }
