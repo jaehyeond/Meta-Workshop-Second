@@ -42,21 +42,6 @@ public class BasicGameScene : BaseScene
  
       	_uiManager.ShowBaseUI<UI_Joystick>();
       	
-        // AppleManager 생성
-        if (NetworkManager.Singleton.IsServer)
-        {
-            GameObject appleManagerPrefab = _resourceManager.Load<GameObject>("Prefabs/InGame/AppleManager");
-            if (appleManagerPrefab != null)
-            {
-                GameObject appleManager = Instantiate(appleManagerPrefab);
-                NetworkObject networkObject = appleManager.GetComponent<NetworkObject>();
-                if (networkObject != null)
-                {
-                    networkObject.Spawn();
-                }
-            }
-        }
-      	
         return true;
     }
 
