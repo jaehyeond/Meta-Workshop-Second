@@ -198,11 +198,70 @@ public class PlayerSnakeController : NetworkBehaviour
             if (Mathf.Approximately(log2Value, Mathf.Round(log2Value)))
             {
                 // 2의 제곱수이면 세그먼트 추가
-                // AddBodySegment();
-                
-
+                AddBodySegmentServerRpc(newValue);
                 _networkScore.Value += newValue;
             }
+        }
+    }
+
+    [ServerRpc]
+    private void AddBodySegmentServerRpc(int headValue)
+    {
+        if (!IsServer) return;
+
+        // Body 세그먼트 프리팹이 없으면 로그 출력
+        if (_bodySegmentPrefab == null)
+        {
+            Debug.LogError($"[{GetType().Name}] Body 세그먼트 프리팹이 설정되지 않았습니다!");
+            return;
+        }
+
+        // 새로운 세그먼트의 값은 헤드 값의 절반
+        int segmentValue = headValue / 2;
+
+        // 스폰 위치 계산 (마지막 세그먼트 뒤 또는 헤드 뒤)
+        Vector3 spawnPosition;
+        if (_bodySegments.Count > 0)
+        {
+            spawnPosition = _bodySegments[_bodySegments.Count - 1].transform.position - transform.forward * _segmentSpacing;
+        }
+        else
+        {
+            spawnPosition = transform.position - transform.forward * _segmentSpacing;
+        }
+
+        // 세그먼트 생성 및 NetworkObject 설정
+        GameObject segment = Instantiate(_bodySegmentPrefab, spawnPosition, transform.rotation);
+        NetworkObject networkObject = segment.GetComponent<NetworkObject>();
+        if (networkObject != null)
+        {
+            networkObject.Spawn();
+
+            // SnakeBodySegment 컴포넌트 설정
+            if (segment.TryGetComponent(out SnakeBodySegment segmentComponent))
+            {
+                segmentComponent.SetValue(segmentValue);
+                _bodySegmentComponents.Add(segmentComponent);
+            }
+
+            // Snake 컴포넌트에 세그먼트 추가
+            if (_snake != null)
+            {
+                _snake.AddDetail(segment);
+            }
+
+            // 목록에 추가
+            _bodySegments.Add(segment);
+            
+            // 네트워크 사이즈 업데이트
+            _networkSize.Value = _bodySegments.Count + 1; // +1은 헤드
+
+            Debug.Log($"[{GetType().Name}] 새로운 Body 세그먼트 추가됨 (값: {segmentValue})");
+        }
+        else
+        {
+            Debug.LogError($"[{GetType().Name}] 세그먼트에 NetworkObject가 없습니다!");
+            Destroy(segment);
         }
     }
     #endregion
