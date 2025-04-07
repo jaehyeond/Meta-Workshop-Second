@@ -83,7 +83,6 @@ public class SnakeHeadTrigger : NetworkBehaviour // NetworkBehaviour 상속 (IsS
         if (target.TryGetComponent(out Apple apple))
         {
             Debug.Log($"[{GetType().Name}] Apple 충돌 감지");
-            // _playerSnakeController.HandleAppleCollision(apple);
             HandleAppleCollision(apple);
         }
         else if (target.TryGetComponent(out SnakeHead otherHead))
@@ -151,5 +150,47 @@ public class SnakeHeadTrigger : NetworkBehaviour // NetworkBehaviour 상속 (IsS
 
         // 스네이크 죽음 처리
         // Die();
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (!IsServer) return;
+
+        // 사과와 충돌
+        if (other.CompareTag("Apple"))
+        {
+            Debug.Log($"[{GetType().Name}] OnTriggerEnter - 사과와 충돌 감지");
+
+            try
+            {
+                // AppleManager 확인
+                if (_appleManager == null)
+                {
+                    var lifetimeScope = FindObjectOfType<LifetimeScope>();
+                    if (lifetimeScope != null)
+                    {
+                        _appleManager = lifetimeScope.Container.Resolve<AppleManager>();
+                        Debug.Log($"[{GetType().Name}] AppleManager 재설정 완료");
+                    }
+                }
+
+                // Apple 컴포넌트 확인
+                Apple apple = other.GetComponent<Apple>();
+                if (apple != null)
+                {
+                    // 기존의 HandleAppleCollision 메서드 호출
+                    HandleAppleCollision(apple);
+                }
+                else
+                {
+                    Debug.LogError($"[{GetType().Name}] 충돌 객체에 Apple 컴포넌트가 없습니다!");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[{GetType().Name}] 사과 충돌 처리 중 오류 발생: {ex.Message}\n{ex.StackTrace}");
+            }
+        }
+        // 다른 스네이크와 충돌 처리는 여기에 구현 (필요시)
     }
 } 

@@ -20,8 +20,6 @@ public class BasicGameLifetimeScope : LifetimeScope
         // 빈 상태로 둡니다
         Debug.Log($"[{GetType().Name}] Configure 메서드 실행");
 
-
-
         ResourceManager resourceManager = null;
         resourceManager = Parent.Container.Resolve<ResourceManager>();
         builder.RegisterInstance(resourceManager);
@@ -42,14 +40,14 @@ public class BasicGameLifetimeScope : LifetimeScope
         _gameManager = Parent.Container.Resolve<GameManager>();
         builder.RegisterInstance(_gameManager);
  
-
         AppleManager _appleManager = null;
         _appleManager = Parent.Container.Resolve<AppleManager>();
         builder.RegisterInstance(_appleManager);
 
         _debugClassFacade?.LogInfo(GetType().Name, "BasicGameScene 등록 시도");
         builder.RegisterComponentInHierarchy<BasicGameScene>();
-
+   
+        
         ObjectManager _objectManager = null;
         _objectManager = Parent.Container.Resolve<ObjectManager>();
         builder.RegisterInstance(_objectManager);
