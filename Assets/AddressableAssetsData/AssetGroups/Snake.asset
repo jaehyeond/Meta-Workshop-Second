@@ -15,6 +15,12 @@ MonoBehaviour:
   m_GroupName: Snake
   m_GUID: 9565622ec4d77c64d9ef25a4820d6735
   m_SerializeEntries:
+  - m_GUID: 011bf29db5bf6e7469e37105f9981db9
+    m_Address: Apple
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - PreLoad
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 19a07308783ea8c458259b8af17f8ff3
     m_Address: Player Aim
     m_ReadOnly: 0

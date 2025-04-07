@@ -41,6 +41,7 @@ public class BasicGameScene : BaseScene
         SceneType = EScene.BasicGame;
  
       	_uiManager.ShowBaseUI<UI_Joystick>();
+
       	
         return true;
     }
@@ -70,5 +71,7 @@ public class BasicGameScene : BaseScene
 
     }
 }
+
+
 
 }

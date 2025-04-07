@@ -26,8 +26,8 @@ public class AppleManager : NetworkBehaviour
         if (!IsServer) return;
         
         // 사과 프리팹 로드
-        _applePrefab = _resourceManager.Load<GameObject>("Prefabs/Snake/Apple");
-        
+        _applePrefab = _resourceManager.Instantiate("Apple");
+
         if (_applePrefab == null)
         {
             Debug.LogError("Apple 프리팹을 로드할 수 없습니다!");
