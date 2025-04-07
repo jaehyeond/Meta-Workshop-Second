@@ -6,12 +6,14 @@ using System.Collections.Generic;
 using VContainer;
 using VContainer.Unity;
 using System.Linq;
+using Unity.Assets.Scripts.Resource;
 
 public class PlayerSnakeController : NetworkBehaviour
 {
     #region Dependencies
     private GameManager _gameManager;
     private AppleManager _appleManager;
+    private ResourceManager _resourceManager;
     #endregion
 
     #region Settings
@@ -19,8 +21,6 @@ public class PlayerSnakeController : NetworkBehaviour
     [SerializeField] private float _initialSnakeSpeed = 5f; // Inspector에서 초기 속도 설정
     
     [Header("2048 Snake Settings")]
-    [SerializeField] private GameObject _bodySegmentPrefab; // Body 세그먼트 프리팹
-    [SerializeField] private int _valueIncrement = 1; // 값 증가량
     [SerializeField] private float _segmentSpacing = 1f; // 세그먼트 간 간격
     #endregion
 
@@ -62,16 +62,20 @@ public class PlayerSnakeController : NetworkBehaviour
         if (IsOwner)
         {
             StartCoroutine(FollowPlayerWithCamera());
-            _gameManager = FindObjectOfType<LifetimeScope>()?.Container.Resolve<GameManager>();
-            _appleManager = FindObjectOfType<LifetimeScope>()?.Container.Resolve<AppleManager>();
-            if (_gameManager != null)
+            var lifetimeScope = FindObjectOfType<LifetimeScope>();
+            if (lifetimeScope != null)
             {
-                _gameManager.OnMoveDirChanged += HandleMoveDirChanged;
-                Debug.Log($"[{GetType().Name}] GameManager 이벤트 구독 완료.");
+                _gameManager = lifetimeScope.Container.Resolve<GameManager>();
+                _appleManager = lifetimeScope.Container.Resolve<AppleManager>();
+                _resourceManager = lifetimeScope.Container.Resolve<ResourceManager>();
+                
+                if (_gameManager != null)
+                {
+                    _gameManager.OnMoveDirChanged += HandleMoveDirChanged;
+                    Debug.Log($"[{GetType().Name}] GameManager 이벤트 구독 완료.");
+                }
             }
         }
-
-
     }
 
     public override void OnNetworkDespawn()
@@ -197,71 +201,9 @@ public class PlayerSnakeController : NetworkBehaviour
             float log2Value = Mathf.Log(newValue, 2);
             if (Mathf.Approximately(log2Value, Mathf.Round(log2Value)))
             {
-                // 2의 제곱수이면 세그먼트 추가
-                AddBodySegmentServerRpc(newValue);
+                AddBodySegmentServerRpc();
                 _networkScore.Value += newValue;
             }
-        }
-    }
-
-    [ServerRpc]
-    private void AddBodySegmentServerRpc(int headValue)
-    {
-        if (!IsServer) return;
-
-        // Body 세그먼트 프리팹이 없으면 로그 출력
-        if (_bodySegmentPrefab == null)
-        {
-            Debug.LogError($"[{GetType().Name}] Body 세그먼트 프리팹이 설정되지 않았습니다!");
-            return;
-        }
-
-        // 새로운 세그먼트의 값은 헤드 값의 절반
-        int segmentValue = headValue / 2;
-
-        // 스폰 위치 계산 (마지막 세그먼트 뒤 또는 헤드 뒤)
-        Vector3 spawnPosition;
-        if (_bodySegments.Count > 0)
-        {
-            spawnPosition = _bodySegments[_bodySegments.Count - 1].transform.position - transform.forward * _segmentSpacing;
-        }
-        else
-        {
-            spawnPosition = transform.position - transform.forward * _segmentSpacing;
-        }
-
-        // 세그먼트 생성 및 NetworkObject 설정
-        GameObject segment = Instantiate(_bodySegmentPrefab, spawnPosition, transform.rotation);
-        NetworkObject networkObject = segment.GetComponent<NetworkObject>();
-        if (networkObject != null)
-        {
-            networkObject.Spawn();
-
-            // SnakeBodySegment 컴포넌트 설정
-            if (segment.TryGetComponent(out SnakeBodySegment segmentComponent))
-            {
-                segmentComponent.SetValue(segmentValue);
-                _bodySegmentComponents.Add(segmentComponent);
-            }
-
-            // Snake 컴포넌트에 세그먼트 추가
-            if (_snake != null)
-            {
-                _snake.AddDetail(segment);
-            }
-
-            // 목록에 추가
-            _bodySegments.Add(segment);
-            
-            // 네트워크 사이즈 업데이트
-            _networkSize.Value = _bodySegments.Count + 1; // +1은 헤드
-
-            Debug.Log($"[{GetType().Name}] 새로운 Body 세그먼트 추가됨 (값: {segmentValue})");
-        }
-        else
-        {
-            Debug.LogError($"[{GetType().Name}] 세그먼트에 NetworkObject가 없습니다!");
-            Destroy(segment);
         }
     }
     #endregion
@@ -289,63 +231,73 @@ public class PlayerSnakeController : NetworkBehaviour
     /// <summary>
     /// 새로운 Body 세그먼트를 추가합니다.
     /// </summary>
-    // private void AddBodySegment()
-    // {
-    //     if (!IsServer) return;
-        
-    //     // Body 세그먼트 프리팹이 없으면 로드
-    //     if (_bodySegmentPrefab == null)
-    //     {
-    //         _bodySegmentPrefab = _resourceManager.Load<GameObject>("Prefabs/Snake/Body Detail");
-    //         if (_bodySegmentPrefab == null)
-    //         {
-    //             Debug.LogError("Body 세그먼트 프리팹을 로드할 수 없습니다!");
-    //             return;
-    //         }
-    //     }
-        
-    //     // 세그먼트 스폰 위치 계산 (마지막 세그먼트 뒤 또는 헤드 뒤)
-    //     Vector3 spawnPosition;
-    //     if (_bodySegments.Count > 0)
-    //     {
-    //         // 마지막 세그먼트 위치 가져오기
-    //         GameObject lastSegment = _bodySegments[_bodySegments.Count - 1];
-    //         spawnPosition = lastSegment.transform.position - lastSegment.transform.forward * _segmentSpacing;
-    //     }
-    //     else
-    //     {
-    //         // 헤드 뒤에 생성
-    //         spawnPosition = _snake.Head.transform.position - _snake.Head.transform.forward * _segmentSpacing;
-    //     }
-        
-    //     // 세그먼트 생성 및 설정
-    //     GameObject segment = Instantiate(_bodySegmentPrefab, spawnPosition, Quaternion.identity);
-    //     segment.transform.parent = transform; // 부모를 PlayerSnakeController로 설정
-        
-    //     // NetworkObject 컴포넌트가 있으면 스폰
-    //     NetworkObject networkObject = segment.GetComponent<NetworkObject>();
-    //     if (networkObject != null)
-    //     {
-    //         networkObject.Spawn();
-    //     }
-        
-    //     // 세그먼트 컴포넌트 설정
-    //     SnakeBodySegment segmentComponent = segment.GetComponent<SnakeBodySegment>();
-    //     if (segmentComponent != null)
-    //     {
-    //         // 세그먼트 값 설정
-    //         int segmentValue = _networkHeadValue.Value;
-    //         segmentComponent.SetValue(segmentValue);
+    [ServerRpc]
+    private void AddBodySegmentServerRpc()
+    {
+        if (!IsServer) return;
+
+        // ResourceManager가 없으면 가져오기 시도
+        if (_resourceManager == null)
+        {
+            var lifetimeScope = FindObjectOfType<LifetimeScope>();
+            if (lifetimeScope != null)
+            {
+                _resourceManager = lifetimeScope.Container.Resolve<ResourceManager>();
+            }
             
-    //         _bodySegmentComponents.Add(segmentComponent);
-    //     }
-        
-    //     // 목록에 추가
-    //     _bodySegments.Add(segment);
-        
-    //     // 네트워크 사이즈 업데이트
-    //     _networkSize.Value = _bodySegments.Count + 1; // +1은 헤드
-    // }
+            if (_resourceManager == null)
+            {
+                Debug.LogError($"[{GetType().Name}] ResourceManager를 찾을 수 없습니다!");
+                return;
+            }
+        }
+
+        // Body Detail 프리팹 로드
+        GameObject bodySegmentPrefab = _resourceManager.Load<GameObject>("Body Detail");
+        if (bodySegmentPrefab == null)
+        {
+            Debug.LogError($"[{GetType().Name}] Body Detail 프리팹을 로드할 수 없습니다!");
+            return;
+        }
+
+        // 세그먼트 스폰 위치 계산
+        Vector3 spawnPosition;
+        if (_bodySegments.Count > 0)
+        {
+            GameObject lastSegment = _bodySegments[_bodySegments.Count - 1];
+            spawnPosition = lastSegment.transform.position - lastSegment.transform.forward * _segmentSpacing;
+        }
+        else
+        {
+            spawnPosition = _snake.Head.transform.position - _snake.Head.transform.forward * _segmentSpacing;
+        }
+
+        // 세그먼트 생성 및 설정
+        GameObject segment = Instantiate(bodySegmentPrefab, spawnPosition, Quaternion.identity);
+        segment.transform.parent = transform;
+
+        // NetworkObject 컴포넌트 스폰
+        NetworkObject networkObject = segment.GetComponent<NetworkObject>();
+        if (networkObject != null)
+        {
+            networkObject.Spawn();
+        }
+
+        // 세그먼트 컴포넌트 설정
+        SnakeBodySegment segmentComponent = segment.GetComponent<SnakeBodySegment>();
+        if (segmentComponent != null)
+        {
+            segmentComponent.SetValue(_networkHeadValue.Value);
+            _bodySegmentComponents.Add(segmentComponent);
+        }
+
+        // 목록에 추가
+        _bodySegments.Add(segment);
+        _snake.AddDetail(segment);
+
+        // 네트워크 사이즈 업데이트
+        _networkSize.Value = _bodySegments.Count + 1;
+    }
     
 
 
