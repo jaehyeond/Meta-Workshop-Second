@@ -51,7 +51,7 @@ SphereCollider:
   m_ProvidesContacts: 0
   m_Enabled: 0
   serializedVersion: 3
-  m_Radius: 0.6
+  m_Radius: 2.28
   m_Center: {x: 0, y: 0.5, z: 0}
 --- !u!1001 &3169931595631278491
 PrefabInstance:
@@ -219,6 +219,9 @@ PrefabInstance:
       addedObject: {fileID: 2257892316943076653}
     - targetCorrespondingSourceObject: {fileID: 259043858979018685, guid: 53b455a24a377464b8de74f2900c2c36, type: 3}
       insertIndex: -1
+      addedObject: {fileID: 6442731360011339192}
+    - targetCorrespondingSourceObject: {fileID: 259043858979018685, guid: 53b455a24a377464b8de74f2900c2c36, type: 3}
+      insertIndex: -1
       addedObject: {fileID: 1193273983838458752}
     - targetCorrespondingSourceObject: {fileID: 259043858979018685, guid: 53b455a24a377464b8de74f2900c2c36, type: 3}
       insertIndex: -1
@@ -273,7 +276,29 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
   _initialSnakeSpeed: 5
+  _bodySegmentPrefab: {fileID: 0}
+  _valueIncrement: 1
+  _segmentSpacing: 1
   _snake: {fileID: 5818919615701227070}
+--- !u!114 &6442731360011339192
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4262908852080162769}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 558f2ffec00304f43bb51dade418d826, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
+  _playerSnakeController: {fileID: 2257892316943076653}
+  _mouthCollider: {fileID: 7010408045826364179}
+  _deathAngle: 100
+  _targetMask:
+    serializedVersion: 2
+    m_Bits: 64
 --- !u!114 &1193273983838458752
 MonoBehaviour:
   m_ObjectHideFlags: 0

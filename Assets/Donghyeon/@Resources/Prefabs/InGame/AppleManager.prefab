@@ -45,7 +45,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 4058324758
+  GlobalObjectIdHash: 2415151769
   InScenePlacedSourceGlobalObjectIdHash: 2415151769
   DeferredDespawnTick: 0
   Ownership: 1
@@ -70,7 +70,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4791c1e99e294bf4f8b730deb505de0a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowTopMostFoldoutHeaderGroup: 1
   _initialAppleCount: 10
   _spawnAreaRadius: 10
   _spawnHeight: 0.6

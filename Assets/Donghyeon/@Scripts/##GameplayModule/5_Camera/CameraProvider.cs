@@ -38,16 +38,6 @@ public class CameraProvider
     }
     
 
-    public void Initialize()
-    {
-
-        if (_cameraFollow == null)
-        {
-            _cameraFollow = Camera.main?.GetComponent<CameraFollow>();
-            Debug.Log($"[CameraProvider] Initialize: CameraFollow 찾기 결과: {_cameraFollow != null}");
-        }
-    }
-
     public void Follow(Transform target)
     {
         if (Instance == null)
@@ -82,4 +72,16 @@ public class CameraProvider
         // 또는 방법 3:
         // _cameraFollow.targetTransform = target;
     }
+
+    
+    public void Initialize()
+    {
+
+        if (_cameraFollow == null)
+        {
+            _cameraFollow = Camera.main?.GetComponent<CameraFollow>();
+            Debug.Log($"[CameraProvider] Initialize: CameraFollow 찾기 결과: {_cameraFollow != null}");
+        }
+    }
+
 }

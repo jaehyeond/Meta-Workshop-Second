@@ -24,6 +24,8 @@ public class BasicGameScene : BaseScene
 
     [Inject] private UIManager _uiManager;
     [Inject] private ResourceManager _resourceManager;
+
+    [Inject] private AppleManager _appleManager;
 	// greenslime 몬스터 ID
 	
 	// 스폰된 몬스터 관리 리스트
@@ -41,8 +43,10 @@ public class BasicGameScene : BaseScene
         SceneType = EScene.BasicGame;
  
       	_uiManager.ShowBaseUI<UI_Joystick>();
-
-      	
+        if (NetworkManager.Singleton.IsServer)
+        {
+            _appleManager.SpawnInitialApples();
+        }
         return true;
     }
 
@@ -70,6 +74,9 @@ public class BasicGameScene : BaseScene
     {
 
     }
+
+
+
 }
 
 

@@ -43,10 +43,16 @@ public class BasicGameLifetimeScope : LifetimeScope
         builder.RegisterInstance(_gameManager);
  
 
+        AppleManager _appleManager = null;
+        _appleManager = Parent.Container.Resolve<AppleManager>();
+        builder.RegisterInstance(_appleManager);
+
         _debugClassFacade?.LogInfo(GetType().Name, "BasicGameScene 등록 시도");
         builder.RegisterComponentInHierarchy<BasicGameScene>();
 
-
+        ObjectManager _objectManager = null;
+        _objectManager = Parent.Container.Resolve<ObjectManager>();
+        builder.RegisterInstance(_objectManager);
     }
 
     

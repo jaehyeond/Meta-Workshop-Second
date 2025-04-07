@@ -203,11 +203,10 @@ public class ObjectManager
 		return go;
 	}
 
-	public T Spawn<T>(ulong clientId, int templateID, string prefabName, GameObject parent) where T : BaseObject
+	public T Spawn<T>(ulong clientId, int templateID, string prefabName) where T : BaseObject
 	{
 		// 기본 위치 (0,0,0)으로 스폰
 		Vector3Int cellPos = new Vector3Int(0, 0, 0);
-		_debugClassFacade?.LogInfo(GetType().Name, $"[ObjectManager] Spawn<T> 호출: {prefabName}");
 		return Spawn<T>(cellPos, clientId, templateID, prefabName);
 	}
 
@@ -216,9 +215,11 @@ public class ObjectManager
 		Vector3 spawnPos = new Vector3(cellPos.x, cellPos.y, 0);
 		return Spawn<T>(spawnPos, clientId, templateID, prefabName);
 	}
+
+
 	public event Action<ulong, ulong> OnMonsterSpawned; // (networkObjectId, clientId)
 
-	public T Spawn<T>(Vector3 position, ulong clientID = 0, int templateID = 0, string prefabName = "", GameObject parent = null) where T : BaseObject
+	public T Spawn<T>(Vector3 position, ulong clientID = 0, int templateID = 0, string prefabName = "") where T : BaseObject
 	{	
 		_debugClassFacade?.LogInfo(GetType().Name, $"[ObjectManager] Spawn<T> 호출: {prefabName}");		
 		_debugClassFacade?.LogInfo(GetType().Name, $"[ObjectManager] Spawn<T> 호출: {position}");
@@ -229,10 +230,12 @@ public class ObjectManager
 			prefabName = typeof(T).Name;
 			_debugClassFacade?.LogInfo(GetType().Name, $"[ObjectManager] 프리팹 이름 자동 설정: {prefabName}");
 		}
+		GameObject go = _resourceManager.Instantiate(prefabName, pooling: false, position: position);
 
-		GameObject go = _resourceManager.Instantiate(prefabName, pooling: true, position: position);
+	
 
 		go.name = prefabName;
+
 		BaseObject obj = go.GetComponent<BaseObject>();
 		if (obj == null)
 		{
@@ -241,89 +244,56 @@ public class ObjectManager
 			return null;
 		}
 
-		bool initResult = obj.Init();
-		_debugClassFacade?.LogInfo(GetType().Name, $"[ObjectManager] '{prefabName}' 오브젝트의 Init 호출 결과: {initResult}");
 
-		if (obj.ObjectType == EObjectType.Creature)
-		{
-			Creature creature = obj.GetComponent<Creature>();
+		// if (obj.ObjectType == EObjectType.Creature)
+		// {
+		// 	Creature creature = obj.GetComponent<Creature>();
 
-			_debugClassFacade?.LogInfo(GetType().Name, $"[ObjectManager] 생성된 Creature의 CreatureType: {creature.CreatureType}");
+		// 	_debugClassFacade?.LogInfo(GetType().Name, $"[ObjectManager] 생성된 Creature의 CreatureType: {creature.CreatureType}");
 
-			switch (creature.CreatureType)
-			{
-			// case CharacterTypeEnum.Monster:
-			// 	CreatureData = DataLoader.instance.MonsterDic[templateID];				
-			// 	ClientMonster clientMonster = go.GetComponent<ClientMonster>();
-			// 	MonsterAvatarSO clientMonsterAvatar = _resourceManager.Load<MonsterAvatarSO>(CreatureData.ClientAvatar);
-			// 	clientMonster.SetAvatar(clientMonsterAvatar);
+		// 	switch (creature.CreatureType)
+		// 	{
+		// 	// case CharacterTypeEnum.Monster:
+		// 	// 	CreatureData = DataLoader.instance.MonsterDic[templateID];				
+		// 	// 	ClientMonster clientMonster = go.GetComponent<ClientMonster>();
+		// 	// 	MonsterAvatarSO clientMonsterAvatar = _resourceManager.Load<MonsterAvatarSO>(CreatureData.ClientAvatar);
+		// 	// 	clientMonster.SetAvatar(clientMonsterAvatar);
 
-			// 	ServerMonster monster = go.GetComponent<ServerMonster>();
-			// 	monster.SetInfo(templateID, CreatureData, clientMonster);
-			// 	Monsters.Add(monster);
-			// 	break;
+		// 	// 	ServerMonster monster = go.GetComponent<ServerMonster>();
+		// 	// 	monster.SetInfo(templateID, CreatureData, clientMonster);
+		// 	// 	Monsters.Add(monster);
+		// 	// 	break;
 			
-			case CharacterTypeEnum.Hero:
-				CreatureData = DataLoader.instance.HeroDic[templateID];
-				// ClientHero clientHero = go.GetComponent<ClientHero>();
-				// HeroAvatarSO clientHeroAvatar = _resourceManager.Load<HeroAvatarSO>(CreatureData.ClientAvatar);
-				// clientHero.SetAvatar(clientHeroAvatar,  CreatureData.SkeletonDataID, _resourceManager);
+		// 	case CharacterTypeEnum.Hero:
+		// 		CreatureData = DataLoader.instance.HeroDic[templateID];
+		// 		// ClientHero clientHero = go.GetComponent<ClientHero>();
+		// 		// HeroAvatarSO clientHeroAvatar = _resourceManager.Load<HeroAvatarSO>(CreatureData.ClientAvatar);
+		// 		// clientHero.SetAvatar(clientHeroAvatar,  CreatureData.SkeletonDataID, _resourceManager);
 
-				// ServerHero serverHero = go.GetComponent<ServerHero>();				
-				// serverHero.SetInfo(templateID, CreatureData, clientHero);
-				// Heroes.Add(serverHero);
-				break;
-			default:
-				_debugClassFacade?.LogWarning(GetType().Name, $"[ObjectManager] 알 수 없는 CreatureType: {creature.CreatureType}");
-				break;
-			}
-		}
-			// Creature creature = go.GetComponent<Creature>();
-			// switch (creature.CreatureType)
-			// {
-			// 	case CharacterTypeEnum.Hero:
-			// 		obj.transform.parent = HeroRoot;
-			// 		// Hero hero = creature as Hero;
-
-			// 		// Heroes.Add(hero);
-			// 		break;
-			// 	case CharacterTypeEnum.Monster:
-			// 		obj.transform.parent = MonsterRoot;
-			// 		ServerMonster monster = creature as ServerMonster;
-			// 		Monsters.Add(monster);
-			// 		Debug.Log($"[ObjectManager] Monsters 추가: {monster.MonsterId}");
-			// 		break;
-			// }
+		// 		// ServerHero serverHero = go.GetComponent<ServerHero>();				
+		// 		// serverHero.SetInfo(templateID, CreatureData, clientHero);
+		// 		// Heroes.Add(serverHero);
+		// 		break;
+		// 	default:
+		// 		_debugClassFacade?.LogWarning(GetType().Name, $"[ObjectManager] 알 수 없는 CreatureType: {creature.CreatureType}");
+		// 		break;
+		// 	}
 		// }
-		// else if (obj.ObjectType == EObjectType.Projectile)
-		// {
-		// 	obj.transform.parent = ProjectileRoot;
 
-			// Projectile projectile = go.GetComponent<Projectile>();
-			// Projectiles.Add(projectile);
-
-		// 	// projectile.SetInfo(templateID);
-		// }
-		// else if (obj.ObjectType == EObjectType.Env)
-		// {
-			// obj.transform.parent = EnvRoot;
-
-			// Env env = go.GetComponent<Env>();
-			// Envs.Add(env);
-
-			// env.SetInfo(templateID);
-		// }
 
 
 		NetworkObject networkObject = go.GetComponent<NetworkObject>();
 
-		// try 
-		// {
-		// 	if (!networkObject.IsSpawned && NetworkManager.Singleton.IsServer)
-		// 	{
-		// 		networkObject.Spawn();
-		// 		_debugClassFacade?.LogInfo(GetType().Name, $"[ObjectManager] NetworkObject 스폰 완료: {networkObject.NetworkObjectId}");
-		// 	}
+		try 
+		{
+			if (!networkObject.IsSpawned && NetworkManager.Singleton.IsServer)
+			{
+				networkObject.Spawn();
+				// networkObject.gameObject.SetActive(true);
+					// 스폰된 게임 오브젝트를 즉시 활성화합니다.
+				_debugClassFacade?.LogInfo(GetType().Name, $"[ObjectManager] NetworkObject 스폰 완료: {networkObject.NetworkObjectId}");
+			}
+		}
 		// 	if (typeof(T) == typeof(ServerMonster))
 		// 	{
 		// 		// 스폰 후 부모 설정 - 이 순서가 중요합니다
@@ -337,12 +307,12 @@ public class ObjectManager
 		// 	// 네트워크 스폰 완료 이벤트 발생
 		// 	_spawnMediator.Notify(NetworkEventType.NetworkSpawned, eventData);
 		// }
-		// catch (Exception e)
-		// {
-		// 	_debugClassFacade?.LogError(GetType().Name, $"[ObjectManager] NetworkObject 스폰 중 오류 발생: {e.Message}");
-		// 	_resourceManager.Destroy(go);
-		// 	return null;
-		// }
+		catch (Exception e)
+		{
+			_debugClassFacade?.LogError(GetType().Name, $"[ObjectManager] NetworkObject 스폰 중 오류 발생: {e.Message}");
+			_resourceManager.Destroy(go);
+			return null;
+		}
 
 
 		return obj as T;
@@ -351,40 +321,40 @@ public class ObjectManager
 	public void Despawn<T>(T obj) where T : BaseObject
 	{
 
-		EObjectType objectType = obj.ObjectType;
-		Debug.Log($"[ObjectManager] Despawn<T> 호출: {obj.name}");
-		if (obj.ObjectType == EObjectType.Creature)
-		{
-			Creature creature = obj.GetComponent<Creature>();
-			Debug.Log($"[ObjectManager] Creature 타입 확인: {obj.name}");
-			Debug.Log($"[ObjectManager] Creature 타입 확인: {creature.CreatureType}");
-			switch (creature.CreatureType)
-			{
-				case CharacterTypeEnum.Hero:
-					// ServerHero hero = creature as ServerHero;
-					// Heroes.Remove(hero);
-					break;
-				case CharacterTypeEnum.Monster:
-					// ServerMonster monster = creature as ServerMonster;
-					// Monsters.Remove(monster);
-					break;
-			}
-		}
-		else if (obj.ObjectType == EObjectType.Projectile)
-		{
-			// Projectile projectile = obj as Projectile;
-			// Projectiles.Remove(projectile);
-		}
-		else if (obj.ObjectType == EObjectType.Env)
-		{
-			// Env env = obj as Env;
-			// Envs.Remove(env);
-		}
-		else if (obj.ObjectType == EObjectType.Effect)
-		{
-			// EffectBase effect = obj as EffectBase;
-			// Effects.Remove(effect);
-		}
+		// EObjectType objectType = obj.ObjectType;
+		// Debug.Log($"[ObjectManager] Despawn<T> 호출: {obj.name}");
+		// if (obj.ObjectType == EObjectType.Creature)
+		// {
+		// 	Creature creature = obj.GetComponent<Creature>();
+		// 	Debug.Log($"[ObjectManager] Creature 타입 확인: {obj.name}");
+		// 	Debug.Log($"[ObjectManager] Creature 타입 확인: {creature.CreatureType}");
+		// 	switch (creature.CreatureType)
+		// 	{
+		// 		case CharacterTypeEnum.Hero:
+		// 			// ServerHero hero = creature as ServerHero;
+		// 			// Heroes.Remove(hero);
+		// 			break;
+		// 		case CharacterTypeEnum.Monster:
+		// 			// ServerMonster monster = creature as ServerMonster;
+		// 			// Monsters.Remove(monster);
+		// 			break;
+		// 	}
+		// }
+		// else if (obj.ObjectType == EObjectType.Projectile)
+		// {
+		// 	// Projectile projectile = obj as Projectile;
+		// 	// Projectiles.Remove(projectile);
+		// }
+		// else if (obj.ObjectType == EObjectType.Env)
+		// {
+		// 	// Env env = obj as Env;
+		// 	// Envs.Remove(env);
+		// }
+		// else if (obj.ObjectType == EObjectType.Effect)
+		// {
+		// 	// EffectBase effect = obj as EffectBase;
+		// 	// Effects.Remove(effect);
+		// }
 
 		// NetworkObject 처리
 		NetworkObject networkObj = obj.GetComponent<NetworkObject>();
@@ -398,82 +368,84 @@ public class ObjectManager
 		_resourceManager.Destroy(obj.gameObject);
 	}
 
-	#region Skill 판정
-	// public List<Creature> FindConeRangeTargets(Creature owner, Vector3 dir, float range, int angleRange, bool isAllies = false)
-	// {
-	// 	HashSet<Creature> targets = new HashSet<Creature>();
-	// 	HashSet<Creature> ret = new HashSet<Creature>();
+  
 
-	// 	ECreatureType targetType = Util.DetermineTargetType(owner.CreatureType, isAllies);
+    #region Skill 판정
+    // public List<Creature> FindConeRangeTargets(Creature owner, Vector3 dir, float range, int angleRange, bool isAllies = false)
+    // {
+    // 	HashSet<Creature> targets = new HashSet<Creature>();
+    // 	HashSet<Creature> ret = new HashSet<Creature>();
 
-	// 	if (targetType == ECreatureType.Monster)
-	// 	{
-	// 		var objs = Managers.Map.GatherObjects<Monster>(owner.transform.position, range, range);
-	// 		targets.AddRange(objs);
-	// 	}
-	// 	else if (targetType == ECreatureType.Hero)
-	// 	{
-	// 		var objs = Managers.Map.GatherObjects<Hero>(owner.transform.position, range, range);
-	// 		targets.AddRange(objs);
-	// 	}
+    // 	ECreatureType targetType = Util.DetermineTargetType(owner.CreatureType, isAllies);
 
-	// 	foreach (var target in targets)
-	// 	{
-	// 		// 1. 거리안에 있는지 확인
-	// 		var targetPos = target.transform.position;
-	// 		float distance = Vector3.Distance(targetPos, owner.transform.position);
+    // 	if (targetType == ECreatureType.Monster)
+    // 	{
+    // 		var objs = Managers.Map.GatherObjects<Monster>(owner.transform.position, range, range);
+    // 		targets.AddRange(objs);
+    // 	}
+    // 	else if (targetType == ECreatureType.Hero)
+    // 	{
+    // 		var objs = Managers.Map.GatherObjects<Hero>(owner.transform.position, range, range);
+    // 		targets.AddRange(objs);
+    // 	}
 
-	// 		if (distance > range)
-	// 			continue;
+    // 	foreach (var target in targets)
+    // 	{
+    // 		// 1. 거리안에 있는지 확인
+    // 		var targetPos = target.transform.position;
+    // 		float distance = Vector3.Distance(targetPos, owner.transform.position);
 
-	// 		// 2. 각도 확인
-	// 		if (angleRange != 360)
-	// 		{
-	// 			BaseObject ownerTarget = (owner as Creature).Target;
+    // 		if (distance > range)
+    // 			continue;
 
-	// 			// 2. 부채꼴 모양 각도 계산
-	// 			float dot = Vector3.Dot((targetPos - owner.transform.position).normalized, dir.normalized);
-	// 			float degree = Mathf.Rad2Deg * Mathf.Acos(dot);
+    // 		// 2. 각도 확인
+    // 		if (angleRange != 360)
+    // 		{
+    // 			BaseObject ownerTarget = (owner as Creature).Target;
 
-	// 			if (degree > angleRange / 2f)
-	// 				continue;
-	// 		}
+    // 			// 2. 부채꼴 모양 각도 계산
+    // 			float dot = Vector3.Dot((targetPos - owner.transform.position).normalized, dir.normalized);
+    // 			float degree = Mathf.Rad2Deg * Mathf.Acos(dot);
 
-	// 		ret.Add(target);
-	// 	}
+    // 			if (degree > angleRange / 2f)
+    // 				continue;
+    // 		}
 
-	// 	return ret.ToList();
-	// }
+    // 		ret.Add(target);
+    // 	}
 
-	// public List<Creature> FindCircleRangeTargets(Creature owner, Vector3 startPos, float range, bool isAllies = false)
-	// {
-	// 	HashSet<Creature> targets = new HashSet<Creature>();
-	// 	HashSet<Creature> ret = new HashSet<Creature>();
+    // 	return ret.ToList();
+    // }
 
-	// 	ECreatureType targetType = Util.DetermineTargetType(owner.CreatureType, isAllies);
+    // public List<Creature> FindCircleRangeTargets(Creature owner, Vector3 startPos, float range, bool isAllies = false)
+    // {
+    // 	HashSet<Creature> targets = new HashSet<Creature>();
+    // 	HashSet<Creature> ret = new HashSet<Creature>();
 
-	// 	if (targetType == ECreatureType.Monster)
-	// 	{
-	// 		var objs = Managers.Map.GatherObjects<Monster>(owner.transform.position, range, range);
-	// 		targets.AddRange(objs);
-	// 	}
-	// 	else if (targetType == ECreatureType.Hero)
-	// 	{
-	// 		var objs = Managers.Map.GatherObjects<Hero>(owner.transform.position, range, range);
-	// 		targets.AddRange(objs);
-	// 	}
+    // 	ECreatureType targetType = Util.DetermineTargetType(owner.CreatureType, isAllies);
 
-	// 	foreach (var target in targets)
-	// 	{
-	// 		// 1. 거리안에 있는지 확인
-	// 		var targetPos = target.transform.position;
-	// 		float distSqr = (targetPos - startPos).sqrMagnitude;
+    // 	if (targetType == ECreatureType.Monster)
+    // 	{
+    // 		var objs = Managers.Map.GatherObjects<Monster>(owner.transform.position, range, range);
+    // 		targets.AddRange(objs);
+    // 	}
+    // 	else if (targetType == ECreatureType.Hero)
+    // 	{
+    // 		var objs = Managers.Map.GatherObjects<Hero>(owner.transform.position, range, range);
+    // 		targets.AddRange(objs);
+    // 	}
 
-	// 		if (distSqr < range * range)
-	// 			ret.Add(target);
-	// 	}
+    // 	foreach (var target in targets)
+    // 	{
+    // 		// 1. 거리안에 있는지 확인
+    // 		var targetPos = target.transform.position;
+    // 		float distSqr = (targetPos - startPos).sqrMagnitude;
 
-	// 	return ret.ToList();
-	// }
-	#endregion
+    // 		if (distSqr < range * range)
+    // 			ret.Add(target);
+    // 	}
+
+    // 	return ret.ToList();
+    // }
+    #endregion
 }

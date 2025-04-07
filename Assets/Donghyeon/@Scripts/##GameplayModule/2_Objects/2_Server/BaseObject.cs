@@ -9,6 +9,7 @@ using System;
 using VContainer;
 // using Unity.Assets.Scripts.Pooling;
 using static Define;
+using VContainer.Unity;
 // using Spine.Unity;
 
 namespace Unity.Assets.Scripts.Objects
@@ -24,30 +25,7 @@ namespace Unity.Assets.Scripts.Objects
 
         private HurtFlashEffect HurtFlash;
 
-        // // ITargetable 인터페이스 구현
-        // private bool _isNpc = false;
 
-        // /// <summary>
-        // /// 이 객체가 NPC인지 여부를 나타냅니다.
-        // /// </summary>
-        // public bool IsNpc 
-        // { 
-        //     get { return _isNpc; } 
-        //     set { _isNpc = value; }
-        // }
-
-        // private bool _isValidTarget = true;
-
-        // /// <summary>
-        // /// 이 객체가 현재 유효한 타겟인지 여부를 나타냅니다.
-        // /// </summary>
-        // public bool IsValidTarget
-        // {
-        //     get { return _isValidTarget; }
-        //     set { _isValidTarget = value; }
-        // }
-
-        // [SerializeField]
    
         public NetworkVariable<bool> IsStealthy { get; } = new NetworkVariable<bool>();
 
@@ -104,9 +82,12 @@ namespace Unity.Assets.Scripts.Objects
                 // Flip(!value);
             }
         }
-        // 엥 코드욀케 개판임? TODO 정리리
 
-        protected void Awake(){}
+        protected void Awake(){
+
+             _objectManager = FindObjectOfType<LifetimeScope>()?.Container.Resolve<ObjectManager>();
+
+        }
 
 
         // public virtual void OnDamaged(BaseObject attacker, SkillBase skill)
