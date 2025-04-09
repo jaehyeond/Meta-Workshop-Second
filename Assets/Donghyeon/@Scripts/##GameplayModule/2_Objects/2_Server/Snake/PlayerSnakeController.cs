@@ -362,42 +362,74 @@ public class PlayerSnakeController : NetworkBehaviour
         {
             // 머리 값의 지수 계산 (2의 몇 승인지)
             float log2HeadValue = Mathf.Log(headValue, 2);
-            int headPower = (int)Mathf.Round(log2HeadValue);
+            int headPower = (int)Mathf.Floor(log2HeadValue); // 2^headPower <= headValue
+            bool isPowerOf2 = Mathf.Approximately(Mathf.Pow(2, headPower), headValue);
             
-            Debug.Log($"[{GetType().Name}] 머리 값: {headValue}, 지수: {headPower}, 세그먼트 수: {_bodySegmentComponents.Count}");
+            Debug.Log($"[{GetType().Name}] 머리 값: {headValue}, 2의 지수: {headPower}, 정확한 2의 제곱수: {isPowerOf2}");
 
-            // 각 세그먼트의 값 계산 및 설정
-            for (int i = 0; i < _bodySegmentComponents.Count; i++)
+            // Head 값이 2^n이면 첫 번째 Body 값 유지 (기존 값 그대로)
+            if (isPowerOf2 && _bodySegmentComponents.Count > 0)
             {
-                SnakeBodySegment segment = _bodySegmentComponents[i];
-                if (segment == null) continue;
-
-                // 값 계산 - 머리 값의 2의 지수에서 위치에 따라 감소
-                int segmentPower;
-                int segmentValue;
+                // 첫 번째 세그먼트(Body1) 값은 변경하지 않음
+                Debug.Log($"[{GetType().Name}] 머리 값이 2의 제곱수({headValue})이므로 Body1 값 유지");
                 
-                if (i == _bodySegmentComponents.Count - 1)
+                // 나머지 세그먼트만 업데이트 (첫 번째 세그먼트는 제외)
+                for (int i = 1; i < _bodySegmentComponents.Count; i++)
                 {
-                    // 마지막 세그먼트는 항상 2
-                    segmentValue = 2;
-                }
-                else if (i == 0)
-                {
-                    // 첫 번째 세그먼트는 머리 값의 절반
-                    segmentPower = headPower - 1;
-                    segmentValue = Mathf.Max(2, (int)Mathf.Pow(2, segmentPower));
-                }
-                else
-                {
-                    // 중간 세그먼트는 2^(headPower-i-1)
-                    segmentPower = headPower - i - 1;
-                    segmentValue = Mathf.Max(2, (int)Mathf.Pow(2, segmentPower));
-                }
+                    SnakeBodySegment segment = _bodySegmentComponents[i];
+                    if (segment == null) continue;
 
-                // 값 적용
-                segment.SetValue(segmentValue);
-                
-                Debug.Log($"[{GetType().Name}] 세그먼트 #{i + 1} 값 설정: {segmentValue}");
+                    int segmentValue;
+                    
+                    // 마지막 세그먼트(꼬리)는 항상 2
+                    if (i == _bodySegmentComponents.Count - 1)
+                    {
+                        segmentValue = 2;
+                    }
+                    // 중간 세그먼트는 2^(headPower-i)의 값을 가짐
+                    else
+                    {
+                        segmentValue = (int)Mathf.Pow(2, headPower - i);
+                        segmentValue = Mathf.Max(2, segmentValue); // 최소값은 2로 설정
+                    }
+
+                    // 값 적용
+                    segment.SetValue(segmentValue);
+                    Debug.Log($"[{GetType().Name}] 세그먼트 #{i} 값 설정: {segmentValue}");
+                }
+            }
+            // Head 값이 2^n이 아닐 경우 모든 Body 업데이트
+            else
+            {
+                for (int i = 0; i < _bodySegmentComponents.Count; i++)
+                {
+                    SnakeBodySegment segment = _bodySegmentComponents[i];
+                    if (segment == null) continue;
+
+                    int segmentValue;
+                    
+                    // 마지막 세그먼트(꼬리)는 항상 2
+                    if (i == _bodySegmentComponents.Count - 1)
+                    {
+                        segmentValue = 2;
+                    }
+                    // 첫 번째 세그먼트는 머리 값보다 작은 가장 큰 2의 제곱수
+                    else if (i == 0)
+                    {
+                        segmentValue = (int)Mathf.Pow(2, headPower);
+                        segmentValue = Mathf.Max(2, segmentValue); // 최소값은 2로 설정
+                    }
+                    // 중간 세그먼트는 2^(headPower-i)의 값을 가짐
+                    else
+                    {
+                        segmentValue = (int)Mathf.Pow(2, headPower - i);
+                        segmentValue = Mathf.Max(2, segmentValue); // 최소값은 2로 설정
+                    }
+
+                    // 값 적용
+                    segment.SetValue(segmentValue);
+                    Debug.Log($"[{GetType().Name}] 세그먼트 #{i} 값 설정: {segmentValue}");
+                }
             }
 
             // 클라이언트에 세그먼트 값 동기화
@@ -417,35 +449,82 @@ public class PlayerSnakeController : NetworkBehaviour
         
         if (_snake == null || _snake.Head == null || _bodySegmentComponents.Count == 0) return;
         
-        // 클라이언트 측에서 동일한 로직으로 값 계산
-        int headValue = _snake.Head.Value;
-        float log2 = Mathf.Log(headValue, 2);
-        int headPower = (int)Mathf.Round(log2);
-        
-        Debug.Log($"[{GetType().Name}] 클라이언트: 헤드 값={headValue}, 2^{headPower} 패턴으로 Body 값 업데이트");
-        
-        // 각 세그먼트 값 설정
-        for (int i = 0; i < _bodySegmentComponents.Count; i++)
+        try
         {
-            if (_bodySegmentComponents[i] == null) continue;
+            // 클라이언트 측에서 동일한 로직으로 값 계산
+            int headValue = _snake.Head.Value;
+            float log2 = Mathf.Log(headValue, 2);
+            int headPower = (int)Mathf.Floor(log2);
+            bool isPowerOf2 = Mathf.Approximately(Mathf.Pow(2, headPower), headValue);
             
-            // 세그먼트 값은 2^(headPower-i-1) 패턴 적용
-            int segmentPower = headPower - i - 1;
-            int segmentValue;
+            Debug.Log($"[{GetType().Name}] 클라이언트: 헤드 값={headValue}, 2의 지수={headPower}");
             
-            // 마지막 세그먼트 또는 계산 값이 2보다 작을 경우 2로 설정
-            if (i == _bodySegmentComponents.Count - 1 || segmentPower < 1)
+            // Head 값이 2^n이면 첫 번째 Body 값 유지
+            if (isPowerOf2 && _bodySegmentComponents.Count > 0)
             {
-                segmentValue = 2; // 항상 마지막 또는 작은 값은 2로 설정
+                // 첫 번째 세그먼트(Body1) 값은 변경하지 않음
+                Debug.Log($"[{GetType().Name}] 클라이언트: 머리 값이 2의 제곱수({headValue})이므로 Body1 값 유지");
+                
+                // 나머지 세그먼트만 업데이트 (첫 번째 세그먼트는 제외)
+                for (int i = 1; i < _bodySegmentComponents.Count; i++)
+                {
+                    if (_bodySegmentComponents[i] == null) continue;
+                    
+                    int segmentValue;
+                    
+                    // 마지막 세그먼트(꼬리)는 항상 2
+                    if (i == _bodySegmentComponents.Count - 1)
+                    {
+                        segmentValue = 2;
+                    }
+                    // 중간 세그먼트는 2^(headPower-i)의 값을 가짐
+                    else
+                    {
+                        segmentValue = (int)Mathf.Pow(2, headPower - i);
+                        segmentValue = Mathf.Max(2, segmentValue); // 최소값은 2로 설정
+                    }
+                    
+                    // 값 설정
+                    _bodySegmentComponents[i].SetValue(segmentValue);
+                    Debug.Log($"[{GetType().Name}] 클라이언트: Body[{i}] 값={segmentValue}");
+                }
             }
+            // Head 값이 2^n이 아닐 경우 모든 Body 업데이트
             else
             {
-                segmentValue = (int)Mathf.Pow(2, segmentPower);
+                for (int i = 0; i < _bodySegmentComponents.Count; i++)
+                {
+                    if (_bodySegmentComponents[i] == null) continue;
+                    
+                    int segmentValue;
+                    
+                    // 마지막 세그먼트(꼬리)는 항상 2
+                    if (i == _bodySegmentComponents.Count - 1)
+                    {
+                        segmentValue = 2;
+                    }
+                    // 첫 번째 세그먼트는 머리 값보다 작은 가장 큰 2의 제곱수
+                    else if (i == 0)
+                    {
+                        segmentValue = (int)Mathf.Pow(2, headPower);
+                        segmentValue = Mathf.Max(2, segmentValue); // 최소값은 2로 설정
+                    }
+                    // 중간 세그먼트는 2^(headPower-i)의 값을 가짐
+                    else
+                    {
+                        segmentValue = (int)Mathf.Pow(2, headPower - i);
+                        segmentValue = Mathf.Max(2, segmentValue); // 최소값은 2로 설정
+                    }
+                    
+                    // 값 설정
+                    _bodySegmentComponents[i].SetValue(segmentValue);
+                    Debug.Log($"[{GetType().Name}] 클라이언트: Body[{i}] 값={segmentValue}");
+                }
             }
-            
-            // 값 설정
-            _bodySegmentComponents[i].SetValue(segmentValue);
-            Debug.Log($"[{GetType().Name}] 클라이언트: Body[{i}] 값={segmentValue}");
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[{GetType().Name}] 클라이언트: 바디 값 동기화 중 오류: {ex.Message}");
         }
     }
     #endregion
@@ -531,31 +610,42 @@ public class PlayerSnakeController : NetworkBehaviour
             // 값 계산 (2^n 패턴)
             int headValue = _networkHeadValue.Value;
             float log2HeadValue = Mathf.Log(headValue, 2);
-            int headPower = (int)Mathf.Round(log2HeadValue);
+            int headPower = (int)Mathf.Floor(log2HeadValue);
+            bool isPowerOf2 = Mathf.Approximately(Mathf.Pow(2, headPower), headValue);
             
             // 새 세그먼트는 위치에 따라 값 결정
-            int segmentPower;
             int segmentValue;
             
             if (_bodySegmentComponents.Count == 0)
             {
-                // 첫 번째 세그먼트는 머리 값의 절반
-                segmentPower = headPower - 1;
-                segmentValue = segmentPower > 0 ? (int)Mathf.Pow(2, segmentPower) : 2;
+                // 첫 번째 세그먼트 계산
+                if (isPowerOf2)
+                {
+                    // 머리가 2^n일 때, 첫 번째 세그먼트는 2^(n-1)
+                    segmentValue = (int)Mathf.Pow(2, headPower - 1);
+                }
+                else
+                {
+                    // 머리가 2^n이 아닐 때, 첫 번째 세그먼트는 2^n
+                    segmentValue = (int)Mathf.Pow(2, headPower);
+                }
+                segmentValue = Mathf.Max(2, segmentValue); // 최소값은 2로 설정
             }
-            else if (_bodySegmentComponents.Count == headPower - 1)
+            else if (_bodySegmentComponents.Count == headPower)
             {
                 // 마지막 세그먼트는 항상 2
                 segmentValue = 2;
             }
             else
             {
-                // 중간 세그먼트는 2^(headPower-index-1)
-                segmentPower = headPower - _bodySegmentComponents.Count - 1;
-                segmentValue = segmentPower > 0 ? (int)Mathf.Pow(2, segmentPower) : 2;
+                // 중간 세그먼트는 2^(headPower-index)의 값을 가짐
+                // (첫 번째 세그먼트가 2^(headPower-1) 또는 2^headPower이므로 인덱스 조정)
+                int index = _bodySegmentComponents.Count;
+                segmentValue = (int)Mathf.Pow(2, headPower - index);
+                segmentValue = Mathf.Max(2, segmentValue); // 최소값은 2로 설정
             }
             
-            Debug.Log($"[{GetType().Name}] 서버: 새 세그먼트 값 계산 - 머리 값: {headValue}(2^{headPower}), 세그먼트 값: {segmentValue}");
+            Debug.Log($"[{GetType().Name}] 서버: 새 세그먼트 값 계산 - 머리 값: {headValue}, 2의 지수: {headPower}, 2의 제곱수 여부: {isPowerOf2}, 세그먼트 값: {segmentValue}");
             
             // SnakeBodySegment 컴포넌트 설정
             SnakeBodySegment segmentComponent = segment.GetComponent<SnakeBodySegment>();
@@ -622,6 +712,7 @@ public class PlayerSnakeController : NetworkBehaviour
             var segmentComponent = _bodySegmentComponents[segmentIndex];
             if (segmentComponent != null)
             {
+                // 서버에서 계산된 값을 그대로 적용
                 segmentComponent.SetValue(segmentValue);
                 Debug.Log($"[{GetType().Name}] 클라이언트: 세그먼트[{segmentIndex}] 값 설정됨: {segmentValue}");
             }
