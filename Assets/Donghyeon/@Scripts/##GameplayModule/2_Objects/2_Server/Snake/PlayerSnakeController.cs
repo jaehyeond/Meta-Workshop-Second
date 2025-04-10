@@ -8,55 +8,70 @@ using VContainer.Unity;
 using System.Linq;
 using Unity.Assets.Scripts.Resource;
 
+/// <summary>
+/// 플레이어 스네이크의 네트워크 동기화와 제어를 담당하는 메인 컨트롤러
+/// NetworkBehaviour를 상속받아 네트워크 기능을 구현
+/// </summary>
 public class PlayerSnakeController : NetworkBehaviour
 {
     #region Dependencies
+    /// <summary>게임 매니저 - 게임 상태 및 이벤트 관리</summary>
     private GameManager _gameManager;
+    /// <summary>사과 매니저 - 사과 생성 및 충돌 처리</summary>
     private AppleManager _appleManager;
+    /// <summary>리소스 매니저 - 프리팹 및 에셋 로드</summary>
     private ResourceManager _resourceManager;
+    /// <summary>스네이크 몸체 핸들러 - 몸체 세그먼트 관리</summary>
     private SnakeBodyHandler _snakeBodyHandler;
-    private SnakeNetworkHandler _snakeNetworkHandler;
     #endregion
 
     #region Settings
     [Header("Movement Settings")]
-    [SerializeField] private float _initialSnakeSpeed = 5f; // Inspector에서 초기 속도 설정
-    
-    [Header("2048 Snake Settings")]
-    [SerializeField] private float _segmentSpacing = 0.17f; // 더 가깝게 설정 (0.2에서 0.15로)
-    [SerializeField] private float _segmentFollowSpeed = 8f; // 따라오는 속도 증가 (12에서 15로)
+    /// <summary>스네이크의 초기 이동 속도</summary>
+    [SerializeField] private float _initialSnakeSpeed = 5f;
+    /// <summary>스네이크의 기본 이동 속도</summary>
+    [SerializeField] private float _movementSpeed = 3f;
+    /// <summary>스네이크의 회전 속도 (도/초)</summary>
+    [SerializeField] private float _rotationSpeed = 180f;
+    /// <summary>이동 시 부드러운 움직임을 위한 보간 계수</summary>
+    [SerializeField] private float _movementSmoothing = 0.05f;
     #endregion
 
     #region Core Components
     [Header("Core Components")]
-    [SerializeField] public Snake _snake; // 실제 스네이크 로직 담당
+    /// <summary>실제 스네이크 로직을 담당하는 Snake 컴포넌트</summary>
+    [SerializeField] public Snake _snake;
     #endregion
 
     #region Runtime Variables
+    /// <summary>스네이크 몸체 세그먼트 GameObject 리스트</summary>
     private List<GameObject> _bodySegments = new List<GameObject>();
+    /// <summary>스네이크 몸체 세그먼트 컴포넌트 리스트</summary>
     private List<SnakeBodySegment> _bodySegmentComponents = new List<SnakeBodySegment>();
-    private Queue<Vector3> _moveHistory = new Queue<Vector3>(); // 이동 기록을 저장
-    private Vector3 _firstSegmentVelocity = Vector3.zero; // 첫 번째 세그먼트 SmoothDamp용
-    private List<Vector3> _segmentVelocities = new List<Vector3>(); // 각 세그먼트 SmoothDamp용
+    /// <summary>스네이크의 이동 기록을 저장하는 큐</summary>
+    private Queue<Vector3> _moveHistory = new Queue<Vector3>();
+    /// <summary>첫 번째 세그먼트의 속도 벡터 (SmoothDamp용)</summary>
+    private Vector3 _firstSegmentVelocity = Vector3.zero;
+    /// <summary>각 세그먼트의 속도 벡터 리스트 (SmoothDamp용)</summary>
+    private List<Vector3> _segmentVelocities = new List<Vector3>();
     #endregion
     
     #region Network Variables
-    // 서버 -> 클라이언트로 동기화될 변수들
-    // 권한: 서버만 쓰기 가능, 모든 클라이언트 읽기 가능
+    /// <summary>네트워크를 통해 동기화되는 플레이어 점수</summary>
     private readonly NetworkVariable<int> _networkScore = new(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+    /// <summary>네트워크를 통해 동기화되는 스네이크 크기</summary>
     private readonly NetworkVariable<int> _networkSize = new(1, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+    /// <summary>네트워크를 통해 동기화되는 플레이어 ID</summary>
     private readonly NetworkVariable<NetworkString> _networkPlayerId = new("", NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+    /// <summary>네트워크를 통해 동기화되는 스네이크 헤드 값</summary>
     public NetworkVariable<int> _networkHeadValue = new(2, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
     #endregion
 
-    #region Serialized Fields
-    [Header("Snake Settings")]
-    [SerializeField] private float _movementSpeed = 3f;
-    [SerializeField] private float _rotationSpeed = 180f;
-    [SerializeField] private float _movementSmoothing = 0.05f; // 이동 부드러움 정도
-    #endregion
-
     #region Unity Lifecycle
+    /// <summary>
+    /// 네트워크 스폰 시 호출되는 메서드
+    /// 서버/클라이언트/오너에 따라 다른 초기화 수행
+    /// </summary>
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
@@ -90,6 +105,10 @@ public class PlayerSnakeController : NetworkBehaviour
         }
     }
 
+    /// <summary>
+    /// 네트워크 디스폰 시 호출되는 메서드
+    /// 이벤트 구독 해지 및 정리 작업 수행
+    /// </summary>
     public override void OnNetworkDespawn()
     {
         base.OnNetworkDespawn();
@@ -102,14 +121,15 @@ public class PlayerSnakeController : NetworkBehaviour
         if (IsOwner)
         {
             _gameManager.OnMoveDirChanged -= HandleMoveDirChanged;
-
         }
     }
-    
-
     #endregion
 
     #region Initialization
+    /// <summary>
+    /// 서버 상태 초기화
+    /// 스네이크 데이터 설정 및 컴포넌트 초기화
+    /// </summary>
     private void InitializeServerState()
     {
         Debug.Log($"[{GetType().Name}] 서버: 스네이크(OwnerClientId: {OwnerClientId}) 스폰됨. 초기 데이터 설정.");
@@ -121,13 +141,6 @@ public class PlayerSnakeController : NetworkBehaviour
             _snakeBodyHandler = gameObject.AddComponent<SnakeBodyHandler>();
         }
         _snakeBodyHandler.Initialize(_snake);
-
-        // SnakeNetworkHandler 초기화
-        _snakeNetworkHandler = GetComponent<SnakeNetworkHandler>();
-        if (_snakeNetworkHandler == null)
-        {
-            _snakeNetworkHandler = gameObject.AddComponent<SnakeNetworkHandler>();
-        }
         
         // 플레이어 데이터 로드
         string playerId = "Player_" + OwnerClientId;
@@ -135,7 +148,10 @@ public class PlayerSnakeController : NetworkBehaviour
         int initialSize = 1;
         int initialHeadValue = 2;
 
-        _snakeNetworkHandler.InitializeNetworkVariables(playerId, initialScore, initialSize, initialHeadValue);
+        _networkPlayerId.Value = playerId;
+        _networkScore.Value = initialScore;
+        _networkSize.Value = initialSize;
+        _networkHeadValue.Value = initialHeadValue;
 
         // 스네이크 헤드 속도 초기화
         if (_snake != null && _snake.Head != null)
@@ -150,19 +166,20 @@ public class PlayerSnakeController : NetworkBehaviour
         }
     }
 
-
-
+    /// <summary>
+    /// 카메라가 플레이어를 따라가도록 하는 코루틴
+    /// 필요한 컴포넌트가 준비될 때까지 대기
+    /// </summary>
     private IEnumerator FollowPlayerWithCamera()
     {
         Debug.Log($"[{GetType().Name}] 카메라 추적 코루틴 시작. CameraProvider 및 Snake Head 대기.");
 
         float waitTime = 0f;
-        const float maxWaitTime = 5f; // 최대 대기 시간
+        const float maxWaitTime = 5f;
 
-        // CameraProvider 인스턴스와 Snake Head가 준비될 때까지 대기
         while ((CameraProvider.Instance == null || _snake == null || _snake.Head == null) && waitTime < maxWaitTime)
         {
-            yield return null; // 다음 프레임까지 대기
+            yield return null;
             waitTime += Time.deltaTime;
         }
 
@@ -180,7 +197,6 @@ public class PlayerSnakeController : NetworkBehaviour
         }
         else
         {
-            // 타임아웃 또는 필요한 컴포넌트 누락 시 로그 출력
             if(CameraProvider.Instance == null) Debug.LogError($"[{GetType().Name}] CameraProvider.Instance를 찾지 못했습니다.");
             if(_snake == null) Debug.LogError($"[{GetType().Name}] _snake 참조가 null입니다.");
             else if (_snake.Head == null) Debug.LogError($"[{GetType().Name}] _snake.Head 참조가 null입니다.");
@@ -188,36 +204,38 @@ public class PlayerSnakeController : NetworkBehaviour
             Debug.LogError($"[{GetType().Name}] 카메라 추적 설정 실패 (대기 시간 초과 또는 컴포넌트 누락).");
         }
     }
-
     #endregion
 
     #region Network Variable Handling
+    /// <summary>
+    /// 네트워크 변수 변경 이벤트 구독
+    /// </summary>
     private void SubscribeToNetworkVariables()
     {
         Debug.Log($"[{GetType().Name}] 클라이언트: NetworkVariable 변경 구독 시작");
-
         _networkHeadValue.OnValueChanged += OnHeadValueChanged;
     }
 
+    /// <summary>
+    /// 네트워크 변수 변경 이벤트 구독 해지
+    /// </summary>
     private void UnsubscribeFromNetworkVariables()
     {
         Debug.Log($"[{GetType().Name}] 클라이언트: NetworkVariable 변경 구독 해지 시작");
-
         if (_networkHeadValue != null) _networkHeadValue.OnValueChanged -= OnHeadValueChanged;
     }
 
-
-
-
+    /// <summary>
+    /// 헤드 값 변경 시 호출되는 콜백
+    /// 서버에서 세그먼트 추가 및 값 업데이트 처리
+    /// </summary>
     private void OnHeadValueChanged(int previousValue, int newValue)
     {
         Debug.Log($"[{GetType().Name}] 헤드 값 변경 감지: {previousValue} -> {newValue}");
         UpdateHeadValueDisplay(newValue);
         
-        // 서버에서만 처리 (세그먼트 추가, 점수 업데이트 등)
         if (IsServer)
         {
-            // 값이 2의 제곱수인지 확인 (로그 2가 정수인지)
             float log2Value = Mathf.Log(newValue, 2);
             if (Mathf.Approximately(log2Value, Mathf.Round(log2Value)))
             {
@@ -225,15 +243,18 @@ public class PlayerSnakeController : NetworkBehaviour
                 _networkScore.Value += newValue;
             }
             
-            // Body 세그먼트 값 업데이트
             UpdateBodyValues(newValue);
         }
     }
-    
-    // 매 프레임마다 실행되는 고정 업데이트 (물리 계산 간격으로 실행됨)
+    #endregion
+
+    #region Movement and Body Management
+    /// <summary>
+    /// 고정 업데이트 - 물리 기반 업데이트
+    /// 서버에서만 몸체 세그먼트 위치 업데이트
+    /// </summary>
     private void FixedUpdate()
     {
-        // 서버에서만 위치 기록 업데이트
         if (!IsServer) return;
         
         if (_snake != null && _snake.Head != null)
@@ -241,232 +262,76 @@ public class PlayerSnakeController : NetworkBehaviour
             _snakeBodyHandler.UpdateBodySegmentsPositions();
         }
     }
-    
-    private void UpdateBodySegmentsPositions()
+
+    /// <summary>
+    /// 헤드 값 표시 업데이트
+    /// </summary>
+    private void UpdateHeadValueDisplay(int value)
     {
-        if (_bodySegments.Count == 0 || _snake == null || _snake.Head == null) return;
-
-        try
+        if (_snake != null && _snake.Head != null)
         {
-            // 세그먼트 개수만큼 속도 벡터 목록 크기 확인
-            while (_segmentVelocities.Count < _bodySegments.Count)
-            {
-                _segmentVelocities.Add(Vector3.zero);
-            }
-            
-            // 보간에 사용할 고정된 비율 (Time.smoothDeltaTime 사용하여 더 부드럽게)
-            float followRatio = _segmentFollowSpeed * Time.smoothDeltaTime;
-            
-            // 머리 위치와 방향 캐싱 (성능 및 안정성 향상)
-            Vector3 headPosition = _snake.Head.transform.position;
-            Quaternion headRotation = _snake.Head.transform.rotation;
-            Vector3 headForward = _snake.Head.transform.forward;
-            
-            // 첫 번째 세그먼트 업데이트 (머리 바로 뒤)
-            if (_bodySegments.Count > 0)
-            {
-                GameObject firstSegment = _bodySegments[0];
-                if (firstSegment == null) return;
-                
-                // 목표 위치 계산 (머리 바로 뒤)
-                Vector3 targetPosition = headPosition - headForward * _segmentSpacing;
-                
-                // 현재 속도 벡터 임시 저장
-                Vector3 currentVelocity = _firstSegmentVelocity;
-                
-                // 부드러운 보간 (Vector3.SmoothDamp 대신 Lerp 사용)
-                firstSegment.transform.position = Vector3.Lerp(
-                    firstSegment.transform.position,
-                    targetPosition,
-                    followRatio * 1.5f
-                );
-                
-                // 현재 속도 저장 (다음 프레임에서 사용)
-                _firstSegmentVelocity = currentVelocity;
-                
-                // 부드러운 회전 보간
-                firstSegment.transform.rotation = Quaternion.Slerp(
-                    firstSegment.transform.rotation,
-                    headRotation,
-                    followRatio * 1.5f // 회전은 약간 더 빠르게
-                );
-            }
-
-            // 나머지 세그먼트 업데이트 (이전 세그먼트를 따라감)
-            for (int i = 1; i < _bodySegments.Count; i++)
-            {
-                GameObject segment = _bodySegments[i];
-                GameObject prevSegment = _bodySegments[i - 1];
-                
-                if (segment == null || prevSegment == null) continue;
-                
-                // 이전 세그먼트 정보 캐싱
-                Vector3 prevPosition = prevSegment.transform.position;
-                Quaternion prevRotation = prevSegment.transform.rotation;
-                Vector3 prevForward = prevSegment.transform.forward;
-                
-                // 목표 위치 계산 (이전 세그먼트 뒤)
-                Vector3 targetPosition = prevPosition - prevForward * _segmentSpacing;
-                
-                // 안전하게 속도 벡터에 접근
-                if (i < _segmentVelocities.Count)
-                {
-                    // 현재 속도 벡터 가져오기
-                    Vector3 currentVelocity = _segmentVelocities[i];
-                    
-                    // 부드러운 보간 (Vector3.SmoothDamp 대신 Lerp 사용하여 오류 방지)
-                    segment.transform.position = Vector3.Lerp(
-                        segment.transform.position,
-                        targetPosition,
-                        followRatio * 1.2f
-                    );
-                    
-                    // 수정된 속도 벡터 저장
-                    _segmentVelocities[i] = currentVelocity;
-                }
-                else
-                {
-                    // 인덱스 범위 밖이면 Lerp 사용
-                    segment.transform.position = Vector3.Lerp(
-                        segment.transform.position,
-                        targetPosition,
-                        followRatio
-                    );
-                }
-                
-                // 부드러운 회전 (고정 비율 사용)
-                segment.transform.rotation = Quaternion.Slerp(
-                    segment.transform.rotation,
-                    prevRotation,
-                    followRatio * 1.2f // 약간 더 빠른 회전
-                );
-            }
-        }
-        catch (System.Exception ex)
-        {
-            Debug.LogError($"[{GetType().Name}] 세그먼트 위치 업데이트 오류: {ex.Message}");
+            _snake.Head.SetValue(value);
         }
     }
-    
-    // Body 세그먼트의 값을 업데이트하는 메서드
-    private void UpdateBodyValues(int headValue)
-    {
-        if (_bodySegmentComponents == null || _bodySegmentComponents.Count == 0) return;
 
-        try
-        {
-            // 머리 값의 지수 계산 (2의 몇 승인지)
-            float log2HeadValue = Mathf.Log(headValue, 2);
-            int headPower = (int)Mathf.Round(log2HeadValue);
-            
-            Debug.Log($"[{GetType().Name}] 머리 값: {headValue}, 지수: {headPower}, 세그먼트 수: {_bodySegmentComponents.Count}");
-
-            // 각 세그먼트의 값 계산 및 설정
-            for (int i = 0; i < _bodySegmentComponents.Count; i++)
-            {
-                SnakeBodySegment segment = _bodySegmentComponents[i];
-                if (segment == null) continue;
-
-                // 값 계산 - 머리 값의 2의 지수에서 위치에 따라 감소
-                int segmentPower;
-                int segmentValue;
-                
-                if (i == _bodySegmentComponents.Count - 1)
-                {
-                    // 마지막 세그먼트는 항상 2
-                    segmentValue = 2;
-                }
-                else if (i == 0)
-                {
-                    // 첫 번째 세그먼트는 머리 값의 절반
-                    segmentPower = headPower - 1;
-                    segmentValue = Mathf.Max(2, (int)Mathf.Pow(2, segmentPower));
-                }
-                else
-                {
-                    // 중간 세그먼트는 2^(headPower-i-1)
-                    segmentPower = headPower - i - 1;
-                    segmentValue = Mathf.Max(2, (int)Mathf.Pow(2, segmentPower));
-                }
-
-                // 값 적용
-                segment.SetValue(segmentValue);
-                
-                Debug.Log($"[{GetType().Name}] 세그먼트 #{i + 1} 값 설정: {segmentValue}");
-            }
-
-            // 클라이언트에 세그먼트 값 동기화
-            SyncBodyValuesClientRpc();
-        }
-        catch (System.Exception ex)
-        {
-            Debug.LogError($"[{GetType().Name}] UpdateBodyValues 오류: {ex.Message}");
-        }
-    }
-    
-    // 모든 클라이언트에 Body 값 동기화 알림
-    [ClientRpc]
-    private void SyncBodyValuesClientRpc()
-    {
-        if (IsServer) return; // 서버는 이미 처리했으므로 제외
-        
-        if (_snake == null || _snake.Head == null || _bodySegmentComponents.Count == 0) return;
-        
-        // 클라이언트 측에서 동일한 로직으로 값 계산
-        int headValue = _snake.Head.Value;
-        float log2 = Mathf.Log(headValue, 2);
-        int headPower = (int)Mathf.Round(log2);
-        
-        Debug.Log($"[{GetType().Name}] 클라이언트: 헤드 값={headValue}, 2^{headPower} 패턴으로 Body 값 업데이트");
-        
-        // 각 세그먼트 값 설정
-        for (int i = 0; i < _bodySegmentComponents.Count; i++)
-        {
-            if (_bodySegmentComponents[i] == null) continue;
-            
-            // 세그먼트 값은 2^(headPower-i-1) 패턴 적용
-            int segmentPower = headPower - i - 1;
-            int segmentValue;
-            
-            // 마지막 세그먼트 또는 계산 값이 2보다 작을 경우 2로 설정
-            if (i == _bodySegmentComponents.Count - 1 || segmentPower < 1)
-            {
-                segmentValue = 2; // 항상 마지막 또는 작은 값은 2로 설정
-            }
-            else
-            {
-                segmentValue = (int)Mathf.Pow(2, segmentPower);
-            }
-            
-            // 값 설정
-            _bodySegmentComponents[i].SetValue(segmentValue);
-            Debug.Log($"[{GetType().Name}] 클라이언트: Body[{i}] 값={segmentValue}");
-        }
-    }
-    #endregion
-
-   
-     
-     private void UpdateHeadValueDisplay(int value)
-     {
-         if (_snake != null && _snake.Head != null)
-         {
-             _snake.Head.SetValue(value);
-         }
-     }
-
-    // --- 입력 처리 및 서버 RPC ---
+    /// <summary>
+    /// 이동 방향 변경 이벤트 핸들러
+    /// 오너 클라이언트에서만 서버로 RPC 전송
+    /// </summary>
     private void HandleMoveDirChanged(Vector2 moveDirection)
     {
         if (!IsOwner) return;
         UpdateMoveDirectionServerRpc(moveDirection);
     }
-    
-    #region 2048 Snake Game Logic
 
-    
     /// <summary>
-    /// 새로운 Body 세그먼트를 추가합니다.
+    /// 서버 RPC: 이동 방향 업데이트
+    /// 서버에서 스네이크 방향 변경 및 클라이언트 동기화
+    /// </summary>
+    [ServerRpc]
+    private void UpdateMoveDirectionServerRpc(Vector2 moveDirection)
+    {
+        if (!IsServer) return;
+
+        if (_snake != null && _snake.Head != null)
+        {
+            if (moveDirection.sqrMagnitude > 0.01f)
+            {
+                Vector3 currentPosition = _snake.Head.transform.position;
+                Vector3 targetDirection = new Vector3(moveDirection.x, 0, moveDirection.y).normalized;
+                Vector3 targetPosition = currentPosition + targetDirection;
+                _snake.Head.LookAt(targetPosition);
+
+                Vector3 moveForward = _snake.Head.transform.forward;
+                UpdateDirectionClientRpc(moveForward);
+            }
+        }
+        else
+        {
+            Debug.LogError($"[{GetType().Name}] 서버: RPC 실행 중 Snake 또는 SnakeHead 참조가 null입니다!");
+        }
+    }
+
+    /// <summary>
+    /// 클라이언트 RPC: 방향 업데이트
+    /// 서버에서 설정한 방향으로 클라이언트 동기화
+    /// </summary>
+    [ClientRpc]
+    private void UpdateDirectionClientRpc(Vector3 direction)
+    {
+        if (IsServer) return;
+
+        if (_snake != null && _snake.Head != null)
+        {
+            _snake.Head.SetTargetDirectionFromServer(direction);
+        }
+    }
+    #endregion
+
+    #region Body Segment Management
+    /// <summary>
+    /// 서버 RPC: 새 몸체 세그먼트 추가
+    /// 서버에서 세그먼트 생성 및 네트워크 동기화
     /// </summary>
     [ServerRpc]
     private void AddBodySegmentServerRpc()
@@ -530,7 +395,7 @@ public class PlayerSnakeController : NetworkBehaviour
                 segment.transform.SetParent(transform, true);
                 
                 _snakeBodyHandler.AddBodySegment(segment, segmentComponent);
-                _snakeNetworkHandler.UpdateScore(segmentComponent.Value);
+                _networkScore.Value += segmentComponent?.Value ?? 2;
                 
                 NotifySegmentAddedClientRpc(_snakeBodyHandler.GetBodySegmentCount() - 1, segmentComponent?.Value ?? 2);
             }
@@ -546,6 +411,10 @@ public class PlayerSnakeController : NetworkBehaviour
         }
     }
 
+    /// <summary>
+    /// 세그먼트 값 계산
+    /// 헤드 값과 세그먼트 위치에 따라 2의 제곱수 패턴으로 계산
+    /// </summary>
     private int CalculateSegmentValue()
     {
         int headValue = _networkHeadValue.Value;
@@ -556,14 +425,17 @@ public class PlayerSnakeController : NetworkBehaviour
         return segmentPower > 0 ? (int)Mathf.Pow(2, segmentPower) : 2;
     }
 
+    /// <summary>
+    /// 클라이언트 RPC: 새 세그먼트 추가 알림
+    /// 클라이언트에서 새 세그먼트 값 설정
+    /// </summary>
     [ClientRpc]
     private void NotifySegmentAddedClientRpc(int segmentIndex, int segmentValue)
     {
-        if (IsServer) return; // 서버는 이미 처리함
+        if (IsServer) return;
         
         Debug.Log($"[{GetType().Name}] 클라이언트: 새 세그먼트 추가 알림 (인덱스: {segmentIndex}, 값: {segmentValue})");
         
-        // 세그먼트가 생성되었는지 확인하고 값 설정
         if (_bodySegmentComponents.Count > segmentIndex)
         {
             var segmentComponent = _bodySegmentComponents[segmentIndex];
@@ -575,85 +447,108 @@ public class PlayerSnakeController : NetworkBehaviour
         }
     }
 
-
-
-    #endregion
-
-    #region Server RPCs
-    [ServerRpc]
-    private void UpdateMoveDirectionServerRpc(Vector2 moveDirection)
+    /// <summary>
+    /// 몸체 세그먼트 값 업데이트
+    /// 헤드 값 변경 시 모든 세그먼트의 값 재계산
+    /// </summary>
+    private void UpdateBodyValues(int headValue)
     {
-        if (!IsServer) return;
+        if (_bodySegmentComponents == null || _bodySegmentComponents.Count == 0) return;
 
-        if (_snake != null && _snake.Head != null)
+        try
         {
-            if (moveDirection.sqrMagnitude > 0.01f)
+            float log2HeadValue = Mathf.Log(headValue, 2);
+            int headPower = (int)Mathf.Round(log2HeadValue);
+            
+            Debug.Log($"[{GetType().Name}] 머리 값: {headValue}, 지수: {headPower}, 세그먼트 수: {_bodySegmentComponents.Count}");
+
+            for (int i = 0; i < _bodySegmentComponents.Count; i++)
             {
-                // 1. 서버에서 목표 방향 계산 및 설정 (즉시 회전은 선택적)
-                Vector3 currentPosition = _snake.Head.transform.position;
-                Vector3 targetDirection = new Vector3(moveDirection.x, 0, moveDirection.y).normalized;
-                Vector3 targetPosition = currentPosition + targetDirection;
-                _snake.Head.LookAt(targetPosition); // SnakeHead에 있는 메소드 이름 사용
+                SnakeBodySegment segment = _bodySegmentComponents[i];
+                if (segment == null) continue;
 
-                Vector3 moveForward = _snake.Head.transform.forward; // 실제 설정된 방향
+                int segmentPower;
+                int segmentValue;
+                
+                if (i == _bodySegmentComponents.Count - 1)
+                {
+                    segmentValue = 2;
+                }
+                else if (i == 0)
+                {
+                    segmentPower = headPower - 1;
+                    segmentValue = Mathf.Max(2, (int)Mathf.Pow(2, segmentPower));
+                }
+                else
+                {
+                    segmentPower = headPower - i - 1;
+                    segmentValue = Mathf.Max(2, (int)Mathf.Pow(2, segmentPower));
+                }
 
-                // 3. 모든 클라이언트에게 목표 방향 전송
-                UpdateDirectionClientRpc(moveForward);
+                segment.SetValue(segmentValue);
+                Debug.Log($"[{GetType().Name}] 세그먼트 #{i + 1} 값 설정: {segmentValue}");
             }
-            // else // 입력 없을 때 처리: 움직이지 않으므로 RPC 불필요 or 멈춤 RPC
-            // {
-            // }
+
+            SyncBodyValuesClientRpc();
         }
-        else
+        catch (System.Exception ex)
         {
-             Debug.LogError($"[{GetType().Name}] 서버: RPC 실행 중 Snake 또는 SnakeHead 참조가 null입니다!");
+            Debug.LogError($"[{GetType().Name}] UpdateBodyValues 오류: {ex.Message}");
         }
     }
-
-
-    #region Client RPCs
-
-    [ClientRpc]
-    private void UpdateDirectionClientRpc(Vector3 direction)
-    {
-        // 서버 자신은 이미 방향을 설정했으므로 무시
-        if (IsServer) return;
-
-        if (_snake != null && _snake.Head != null)
-        {
-            // 방향 전환을 부드럽게 처리
-            _snake.Head.SetTargetDirectionFromServer(direction);
-        }
-
-    }
-    #endregion
-
-
-    #endregion
-
-
-
 
     /// <summary>
-    /// 스네이크 죽음 처리 로직 (서버 전용)
+    /// 클라이언트 RPC: 몸체 값 동기화
+    /// 서버에서 계산된 값을 클라이언트에 동기화
     /// </summary>
-    private void Die()
+    [ClientRpc]
+    private void SyncBodyValuesClientRpc()
     {
-        if (!IsServer) return;
-
-        Debug.LogWarning($"[{GetType().Name}] 스네이크 사망 처리 (서버): OwnerClientId={OwnerClientId}");
-
-        NetworkObject networkObject = GetComponent<NetworkObject>();
-        if (networkObject != null)
+        if (IsServer) return;
+        
+        if (_snake == null || _snake.Head == null || _bodySegmentComponents.Count == 0) return;
+        
+        int headValue = _snake.Head.Value;
+        float log2 = Mathf.Log(headValue, 2);
+        int headPower = (int)Mathf.Round(log2);
+        
+        Debug.Log($"[{GetType().Name}] 클라이언트: 헤드 값={headValue}, 2^{headPower} 패턴으로 Body 값 업데이트");
+        
+        for (int i = 0; i < _bodySegmentComponents.Count; i++)
         {
-             networkObject.Despawn(true); // true: 즉시 파괴
+            if (_bodySegmentComponents[i] == null) continue;
+            
+            int segmentPower = headPower - i - 1;
+            int segmentValue;
+            
+            if (i == _bodySegmentComponents.Count - 1 || segmentPower < 1)
+            {
+                segmentValue = 2;
+            }
+            else
+            {
+                segmentValue = (int)Mathf.Pow(2, segmentPower);
+            }
+            
+            _bodySegmentComponents[i].SetValue(segmentValue);
+            Debug.Log($"[{GetType().Name}] 클라이언트: Body[{i}] 값={segmentValue}");
         }
-        else
-        {
-             Destroy(gameObject);
-        }
-
     }
+    #endregion
+       // private void Die()
+    // {
+    //     if (!IsServer) return;
 
+    //     Debug.LogWarning($"[{GetType().Name}] 스네이크 사망 처리 (서버): OwnerClientId={OwnerClientId}");
 
+    //     NetworkObject networkObject = GetComponent<NetworkObject>();
+    //     if (networkObject != null)
+    //     {
+    //         networkObject.Despawn(true);
+    //     }
+    //     else
+    //     {
+    //         Destroy(gameObject);
+    //     }
+    // }
 }
