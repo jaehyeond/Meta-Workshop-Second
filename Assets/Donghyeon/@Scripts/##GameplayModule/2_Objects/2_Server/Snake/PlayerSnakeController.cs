@@ -293,6 +293,13 @@ public class PlayerSnakeController : NetworkBehaviour
     {
         if (!IsServer) return;
 
+
+        if (_snake == null || _snake.Head == null)
+        {
+        Debug.LogError($"[{GetType().Name}] 서버: Snake 또는 SnakeHead 참조가 null입니다!");
+        return;
+        }
+
         if (_snake != null && _snake.Head != null)
         {
             if (moveDirection.sqrMagnitude > 0.01f)
@@ -321,11 +328,24 @@ public class PlayerSnakeController : NetworkBehaviour
     {
         if (IsServer) return;
 
-        if (_snake != null && _snake.Head != null)
+        if (_snake == null || _snake.Head == null)
         {
-            _snake.Head.SetTargetDirectionFromServer(direction);
+        Debug.LogError($"[{GetType().Name}] 클라이언트: Snake 또는 SnakeHead 참조가 null입니다!");
+        return;
         }
+
+     _snake.Head.SetTargetDirectionFromServer(direction);
     }
+    // [ClientRpc]
+    // private void UpdateDirectionClientRpc(Vector3 direction)
+    // {
+    //     if (IsServer) return;
+
+    //     if (_snake != null && _snake.Head != null)
+    //     {
+    //         _snake.Head.SetTargetDirectionFromServer(direction);
+    //     }
+    // }
     #endregion
 
     #region Body Segment Management

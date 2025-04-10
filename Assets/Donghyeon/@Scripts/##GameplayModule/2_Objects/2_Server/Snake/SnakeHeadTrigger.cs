@@ -47,7 +47,7 @@ public class SnakeHeadTrigger : NetworkBehaviour // NetworkBehaviour 상속 (IsS
             return;
         }
         // DetectCollisions 호출 직전 확인
-        Debug.Log($"[{GetType().Name}] Calling DetectCollisions...");
+        //Debug.Log($"[{GetType().Name}] Calling DetectCollisions...");
         DetectCollisions();
     }
 
