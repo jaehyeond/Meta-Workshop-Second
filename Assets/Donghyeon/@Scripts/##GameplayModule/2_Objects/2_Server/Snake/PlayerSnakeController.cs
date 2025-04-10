@@ -14,6 +14,8 @@ public class PlayerSnakeController : NetworkBehaviour
     private GameManager _gameManager;
     private AppleManager _appleManager;
     private ResourceManager _resourceManager;
+    private SnakeBodyHandler _snakeBodyHandler;
+    private SnakeNetworkHandler _snakeNetworkHandler;
     #endregion
 
     #region Settings
@@ -112,36 +114,40 @@ public class PlayerSnakeController : NetworkBehaviour
     {
         Debug.Log($"[{GetType().Name}] 서버: 스네이크(OwnerClientId: {OwnerClientId}) 스폰됨. 초기 데이터 설정.");
 
+        // SnakeBodyHandler 초기화
+        _snakeBodyHandler = GetComponent<SnakeBodyHandler>();
+        if (_snakeBodyHandler == null)
+        {
+            _snakeBodyHandler = gameObject.AddComponent<SnakeBodyHandler>();
+        }
+        _snakeBodyHandler.Initialize(_snake);
+
+        // SnakeNetworkHandler 초기화
+        _snakeNetworkHandler = GetComponent<SnakeNetworkHandler>();
+        if (_snakeNetworkHandler == null)
+        {
+            _snakeNetworkHandler = gameObject.AddComponent<SnakeNetworkHandler>();
+        }
+        
+        // 플레이어 데이터 로드
+        string playerId = "Player_" + OwnerClientId;
+        int initialScore = 0;
+        int initialSize = 1;
+        int initialHeadValue = 2;
+
+        _snakeNetworkHandler.InitializeNetworkVariables(playerId, initialScore, initialSize, initialHeadValue);
+
         // 스네이크 헤드 속도 초기화
         if (_snake != null && _snake.Head != null)
         {
             _snake.Head.Construct(_initialSnakeSpeed);
-            _snake.Head.SetValue(2); // 초기 값 설정
+            _snake.Head.SetValue(2);
             Debug.Log($"[{GetType().Name}] 서버: 스네이크 헤드 속도 초기화 완료 ({_initialSnakeSpeed})");
         }
         else
         {
             Debug.LogError($"[{GetType().Name}] 서버: Snake 또는 SnakeHead 참조가 null입니다!");
         }
-
-        // 세그먼트 속도 벡터 초기화
-        _segmentVelocities = new List<Vector3>();
-        _firstSegmentVelocity = Vector3.zero;
-
-        // 플레이어 데이터 로드 (예시)
-        string playerId = "Player_" + OwnerClientId;
-        int initialScore = 0;
-        int initialSize = 1;
-        int initialHeadValue = 2;
-
-        // NetworkVariable 값 설정 (클라이언트로 동기화됨)
-        _networkPlayerId.Value = playerId;
-        _networkScore.Value = initialScore;
-        _networkSize.Value = initialSize;
-        _networkHeadValue.Value = initialHeadValue;
-
-        // 서버 측 다른 시스템 업데이트 (예: 리더보드)
-        // _leaderboardService?.UpdateLeader(playerId, initialScore);
     }
 
 
@@ -232,18 +238,7 @@ public class PlayerSnakeController : NetworkBehaviour
         
         if (_snake != null && _snake.Head != null)
         {
-            // 현재 위치를 이동 기록에 추가
-            _moveHistory.Enqueue(_snake.Head.transform.position);
-            
-            // 기록 크기 제한 (최대 100개 저장)
-            const int maxHistorySize = 100;
-            while (_moveHistory.Count > maxHistorySize)
-            {
-                _moveHistory.Dequeue();
-            }
-            
-            // Body 세그먼트 위치 업데이트
-            UpdateBodySegmentsPositions();
+            _snakeBodyHandler.UpdateBodySegmentsPositions();
         }
     }
     
@@ -362,85 +357,46 @@ public class PlayerSnakeController : NetworkBehaviour
         {
             // 머리 값의 지수 계산 (2의 몇 승인지)
             float log2HeadValue = Mathf.Log(headValue, 2);
-            int headPower = (int)Mathf.Floor(log2HeadValue); // 2^headPower <= headValue
-            bool isPowerOf2 = Mathf.Approximately(Mathf.Pow(2, headPower), headValue);
+            int headPower = (int)Mathf.Round(log2HeadValue);
             
-            Debug.Log($"[{GetType().Name}] 머리 값: {headValue}, 2의 지수: {headPower}, 정확한 2의 제곱수: {isPowerOf2}, 세그먼트 수: {_bodySegmentComponents.Count}");
+            Debug.Log($"[{GetType().Name}] 머리 값: {headValue}, 지수: {headPower}, 세그먼트 수: {_bodySegmentComponents.Count}");
 
-            // 세그먼트 값을 임시 배열에 계산
-            int[] newValues = new int[_bodySegmentComponents.Count];
-            
-            // Head 값이 2^n이면 첫 번째 Body 값 유지, 그 외에는 새로 계산
-            if (isPowerOf2 && _bodySegmentComponents.Count > 0)
-            {
-                // 첫 번째 세그먼트(Body1) 값은 현재 값 그대로 유지
-                newValues[0] = _bodySegmentComponents[0].GetValue();
-                Debug.Log($"[{GetType().Name}] 머리 값이 2의 제곱수({headValue})이므로 Body1 값 유지: {newValues[0]}");
-                
-                // 나머지 세그먼트 값 계산 (2^(n-1), 2^(n-2), ...)
-                for (int i = 1; i < _bodySegmentComponents.Count; i++)
-                {
-                    if (i == _bodySegmentComponents.Count - 1)
-                    {
-                        // 마지막 세그먼트는 항상 2
-                        newValues[i] = 2;
-                    }
-                    else
-                    {
-                        // 중간 세그먼트 값 계산
-                        newValues[i] = (int)Mathf.Pow(2, headPower - i);
-                        newValues[i] = Mathf.Max(2, newValues[i]); // 최소값은 2로 설정
-                    }
-                }
-            }
-            else
-            {
-                // Head가 2^n이 아닐 경우 첫 번째 세그먼트부터 다시 계산
-                for (int i = 0; i < _bodySegmentComponents.Count; i++)
-                {
-                    if (i == 0)
-                    {
-                        // 첫 번째 세그먼트는 머리 값보다 작은 가장 큰 2의 제곱수
-                        newValues[i] = (int)Mathf.Pow(2, headPower);
-                    }
-                    else if (i == _bodySegmentComponents.Count - 1)
-                    {
-                        // 마지막 세그먼트는 항상 2
-                        newValues[i] = 2;
-                    }
-                    else
-                    {
-                        // 중간 세그먼트는 순차적으로 감소 (64, 32, 16, 8, 4)
-                        newValues[i] = (int)Mathf.Pow(2, headPower - i);
-                        newValues[i] = Mathf.Max(2, newValues[i]); // 최소값은 2로 설정
-                    }
-                }
-            }
-            
-            // 값 중복 검사 및 수정 (연속된 같은 값이 없도록)
-            for (int i = 0; i < newValues.Length - 1; i++)
-            {
-                // 다음 세그먼트와 값이 같으면 절반으로 감소
-                if (i < newValues.Length - 1 && newValues[i] == newValues[i + 1])
-                {
-                    // 최소값은 4로 유지 (다음이 2가 되도록)
-                    newValues[i + 1] = Mathf.Max(2, newValues[i + 1] / 2);
-                }
-            }
-            
-            // 계산된 값을 세그먼트에 적용
+            // 각 세그먼트의 값 계산 및 설정
             for (int i = 0; i < _bodySegmentComponents.Count; i++)
             {
                 SnakeBodySegment segment = _bodySegmentComponents[i];
                 if (segment == null) continue;
+
+                // 값 계산 - 머리 값의 2의 지수에서 위치에 따라 감소
+                int segmentPower;
+                int segmentValue;
                 
+                if (i == _bodySegmentComponents.Count - 1)
+                {
+                    // 마지막 세그먼트는 항상 2
+                    segmentValue = 2;
+                }
+                else if (i == 0)
+                {
+                    // 첫 번째 세그먼트는 머리 값의 절반
+                    segmentPower = headPower - 1;
+                    segmentValue = Mathf.Max(2, (int)Mathf.Pow(2, segmentPower));
+                }
+                else
+                {
+                    // 중간 세그먼트는 2^(headPower-i-1)
+                    segmentPower = headPower - i - 1;
+                    segmentValue = Mathf.Max(2, (int)Mathf.Pow(2, segmentPower));
+                }
+
                 // 값 적용
-                segment.SetValue(newValues[i]);
-                Debug.Log($"[{GetType().Name}] 세그먼트 #{i} 값 설정: {newValues[i]}");
+                segment.SetValue(segmentValue);
+                
+                Debug.Log($"[{GetType().Name}] 세그먼트 #{i + 1} 값 설정: {segmentValue}");
             }
 
             // 클라이언트에 세그먼트 값 동기화
-            SyncBodyValuesClientRpc(newValues);
+            SyncBodyValuesClientRpc();
         }
         catch (System.Exception ex)
         {
@@ -448,30 +404,43 @@ public class PlayerSnakeController : NetworkBehaviour
         }
     }
     
-    // 클라이언트 RPC 수정하여 계산된 값을 직접 전달
+    // 모든 클라이언트에 Body 값 동기화 알림
     [ClientRpc]
-    private void SyncBodyValuesClientRpc(int[] newValues)
+    private void SyncBodyValuesClientRpc()
     {
         if (IsServer) return; // 서버는 이미 처리했으므로 제외
         
         if (_snake == null || _snake.Head == null || _bodySegmentComponents.Count == 0) return;
         
-        try
+        // 클라이언트 측에서 동일한 로직으로 값 계산
+        int headValue = _snake.Head.Value;
+        float log2 = Mathf.Log(headValue, 2);
+        int headPower = (int)Mathf.Round(log2);
+        
+        Debug.Log($"[{GetType().Name}] 클라이언트: 헤드 값={headValue}, 2^{headPower} 패턴으로 Body 값 업데이트");
+        
+        // 각 세그먼트 값 설정
+        for (int i = 0; i < _bodySegmentComponents.Count; i++)
         {
-            Debug.Log($"[{GetType().Name}] 클라이언트: 바디 값 동기화 시작, 세그먼트 수: {_bodySegmentComponents.Count}, 전달된 값 수: {newValues.Length}");
+            if (_bodySegmentComponents[i] == null) continue;
             
-            // 서버에서 계산된 값을 클라이언트에 직접 적용
-            for (int i = 0; i < _bodySegmentComponents.Count && i < newValues.Length; i++)
+            // 세그먼트 값은 2^(headPower-i-1) 패턴 적용
+            int segmentPower = headPower - i - 1;
+            int segmentValue;
+            
+            // 마지막 세그먼트 또는 계산 값이 2보다 작을 경우 2로 설정
+            if (i == _bodySegmentComponents.Count - 1 || segmentPower < 1)
             {
-                if (_bodySegmentComponents[i] == null) continue;
-                
-                _bodySegmentComponents[i].SetValue(newValues[i]);
-                Debug.Log($"[{GetType().Name}] 클라이언트: Body[{i}] 값 설정: {newValues[i]}");
+                segmentValue = 2; // 항상 마지막 또는 작은 값은 2로 설정
             }
-        }
-        catch (System.Exception ex)
-        {
-            Debug.LogError($"[{GetType().Name}] 클라이언트: 바디 값 동기화 중 오류: {ex.Message}");
+            else
+            {
+                segmentValue = (int)Mathf.Pow(2, segmentPower);
+            }
+            
+            // 값 설정
+            _bodySegmentComponents[i].SetValue(segmentValue);
+            Debug.Log($"[{GetType().Name}] 클라이언트: Body[{i}] 값={segmentValue}");
         }
     }
     #endregion
@@ -502,12 +471,10 @@ public class PlayerSnakeController : NetworkBehaviour
     [ServerRpc]
     private void AddBodySegmentServerRpc()
     {
-        // 서버 권한 확인
         if (!IsServer) return;
 
         Debug.Log($"[{GetType().Name}] 서버: 새 Body 세그먼트 생성 시작");
 
-        // ResourceManager 확인
         if (_resourceManager == null)
         {
             var lifetimeScope = FindObjectOfType<LifetimeScope>();
@@ -523,7 +490,6 @@ public class PlayerSnakeController : NetworkBehaviour
             }
         }
 
-        // Body Detail 프리팹 로드
         GameObject bodySegmentPrefab = _resourceManager.Load<GameObject>("Body Detail");
         if (bodySegmentPrefab == null)
         {
@@ -531,107 +497,42 @@ public class PlayerSnakeController : NetworkBehaviour
             return;
         }
 
-        // 세그먼트 스폰 위치 계산 (변경 없음)
         Vector3 spawnPosition;
         Quaternion spawnRotation;
         
-        if (_bodySegments.Count > 0)
+        if (_snakeBodyHandler.GetBodySegmentCount() > 0)
         {
-            // 마지막 세그먼트 뒤에 생성
-            GameObject lastSegment = _bodySegments[_bodySegments.Count - 1];
-            spawnPosition = lastSegment.transform.position - lastSegment.transform.forward * _segmentSpacing;
+            GameObject lastSegment = _snakeBodyHandler.GetLastSegment();
+            spawnPosition = lastSegment.transform.position - lastSegment.transform.forward * _snakeBodyHandler.GetSegmentSpacing();
             spawnRotation = lastSegment.transform.rotation;
         }
         else
         {
-            // 머리 뒤에 생성
-            spawnPosition = _snake.Head.transform.position - _snake.Head.transform.forward * _segmentSpacing;
+            spawnPosition = _snake.Head.transform.position - _snake.Head.transform.forward * _snakeBodyHandler.GetSegmentSpacing();
             spawnRotation = _snake.Head.transform.rotation;
         }
 
         try
         {
-            // 세그먼트 생성
             GameObject segment = Instantiate(bodySegmentPrefab, spawnPosition, spawnRotation);
-            
-            // 값 계산 - 새로운 로직
-            int headValue = _networkHeadValue.Value;
-            float log2HeadValue = Mathf.Log(headValue, 2);
-            int headPower = (int)Mathf.Floor(log2HeadValue);
-            bool isPowerOf2 = Mathf.Approximately(Mathf.Pow(2, headPower), headValue);
-            
-            // 새 세그먼트 값 결정
-            int segmentValue;
-            int newIndex = _bodySegmentComponents.Count;
-            
-            if (newIndex == 0)
-            {
-                // 첫 번째 세그먼트
-                if (isPowerOf2)
-                {
-                    // Head가 2^n이면 2^(n-1)
-                    segmentValue = (int)Mathf.Pow(2, headPower - 1);
-                }
-                else
-                {
-                    // Head가 2^n이 아니면 2^n
-                    segmentValue = (int)Mathf.Pow(2, headPower);
-                }
-            }
-            else if (newIndex == headPower || newIndex >= 5) // 인덱스가 헤드 파워와 같거나 일정 수 이상이면 2
-            {
-                // 마지막으로 추가되는 세그먼트
-                segmentValue = 2;
-            }
-            else
-            {
-                // 중간 세그먼트
-                segmentValue = (int)Mathf.Pow(2, headPower - newIndex);
-                
-                // 이전 세그먼트와 값이 같은지 확인 (중복 방지)
-                if (_bodySegmentComponents.Count > 0 && _bodySegmentComponents[_bodySegmentComponents.Count - 1].GetValue() <= segmentValue)
-                {
-                    segmentValue = _bodySegmentComponents[_bodySegmentComponents.Count - 1].GetValue() / 2;
-                }
-            }
-            
-            // 최소값 보장
-            segmentValue = Mathf.Max(2, segmentValue);
-            
-            Debug.Log($"[{GetType().Name}] 서버: 새 세그먼트 값 계산 - 머리 값: {headValue}, 2의 지수: {headPower}, 2의 제곱수: {isPowerOf2}, 인덱스: {newIndex}, 값: {segmentValue}");
-            
-            // 값 설정 및 나머지 로직 (변경 없음)
             SnakeBodySegment segmentComponent = segment.GetComponent<SnakeBodySegment>();
+            
             if (segmentComponent != null)
             {
+                int segmentValue = CalculateSegmentValue();
                 segmentComponent.SetValue(segmentValue);
             }
             
-            // NetworkObject 스폰
             NetworkObject networkObject = segment.GetComponent<NetworkObject>();
             if (networkObject != null)
             {
                 networkObject.Spawn();
                 segment.transform.SetParent(transform, true);
                 
-                _bodySegments.Add(segment);
-                _snake.AddDetail(segment);
+                _snakeBodyHandler.AddBodySegment(segment, segmentComponent);
+                _snakeNetworkHandler.UpdateScore(segmentComponent.Value);
                 
-                if (segmentComponent != null)
-                {
-                    _bodySegmentComponents.Add(segmentComponent);
-                    _segmentVelocities.Add(Vector3.zero);
-                }
-                
-                _networkSize.Value = _bodySegments.Count + 1;
-                
-                // 모든 클라이언트에 알림
-                NotifySegmentAddedClientRpc(_bodySegments.Count - 1, segmentValue);
-                
-                // 모든 Body 세그먼트 값 업데이트 (일관성 유지)
-                UpdateBodyValues(headValue);
-                
-                Debug.Log($"[{GetType().Name}] Body 세그먼트 추가 완료: #{_bodySegments.Count}");
+                NotifySegmentAddedClientRpc(_snakeBodyHandler.GetBodySegmentCount() - 1, segmentComponent?.Value ?? 2);
             }
             else
             {
@@ -643,6 +544,16 @@ public class PlayerSnakeController : NetworkBehaviour
         {
             Debug.LogError($"[{GetType().Name}] 세그먼트 생성 중 오류: {ex.Message}");
         }
+    }
+
+    private int CalculateSegmentValue()
+    {
+        int headValue = _networkHeadValue.Value;
+        float log2HeadValue = Mathf.Log(headValue, 2);
+        int headPower = (int)Mathf.Round(log2HeadValue);
+        
+        int segmentPower = headPower - _snakeBodyHandler.GetBodySegmentCount() - 1;
+        return segmentPower > 0 ? (int)Mathf.Pow(2, segmentPower) : 2;
     }
 
     [ClientRpc]
@@ -658,12 +569,13 @@ public class PlayerSnakeController : NetworkBehaviour
             var segmentComponent = _bodySegmentComponents[segmentIndex];
             if (segmentComponent != null)
             {
-                // 서버에서 계산된 값을 그대로 적용
                 segmentComponent.SetValue(segmentValue);
                 Debug.Log($"[{GetType().Name}] 클라이언트: 세그먼트[{segmentIndex}] 값 설정됨: {segmentValue}");
             }
         }
     }
+
+
 
     #endregion
 
@@ -712,6 +624,7 @@ public class PlayerSnakeController : NetworkBehaviour
             // 방향 전환을 부드럽게 처리
             _snake.Head.SetTargetDirectionFromServer(direction);
         }
+
     }
     #endregion
 

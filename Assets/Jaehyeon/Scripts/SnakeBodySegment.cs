@@ -9,6 +9,16 @@ public class SnakeBodySegment : MonoBehaviour
     [SerializeField] private TextMeshPro _valueText;  // 값을 표시할 TextMeshPro
     
     private int _value = 2;  // 기본값
+
+    public int Value
+    {
+        get => _value;
+        set
+        {
+            _value = value;
+            UpdateValueDisplay();
+        }
+    }
     
     /// <summary>
     /// 세그먼트의 값을 설정합니다.
