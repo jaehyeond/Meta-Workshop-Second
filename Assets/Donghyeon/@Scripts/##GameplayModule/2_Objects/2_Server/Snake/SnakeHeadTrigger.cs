@@ -47,7 +47,7 @@ public class SnakeHeadTrigger : NetworkBehaviour // NetworkBehaviour 상속 (IsS
             return;
         }
         // DetectCollisions 호출 직전 확인
-        //Debug.Log($"[{GetType().Name}] Calling DetectCollisions...");
+        Debug.Log($"[{GetType().Name}] Calling DetectCollisions...");
         DetectCollisions();
     }
 
@@ -83,6 +83,7 @@ public class SnakeHeadTrigger : NetworkBehaviour // NetworkBehaviour 상속 (IsS
         if (target.TryGetComponent(out Apple apple))
         {
             Debug.Log($"[{GetType().Name}] Apple 충돌 감지");
+
             HandleAppleCollision(apple);
         }
         else if (target.TryGetComponent(out SnakeHead otherHead))

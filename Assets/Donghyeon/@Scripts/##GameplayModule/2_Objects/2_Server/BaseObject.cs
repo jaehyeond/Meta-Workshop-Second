@@ -22,6 +22,7 @@ namespace Unity.Assets.Scripts.Objects
     {
 
         [Inject] public ObjectManager _objectManager;
+        [Inject] public AppleManager _appleManager;
 
         private HurtFlashEffect HurtFlash;
 
@@ -86,7 +87,8 @@ namespace Unity.Assets.Scripts.Objects
         protected void Awake(){
 
              _objectManager = FindObjectOfType<LifetimeScope>()?.Container.Resolve<ObjectManager>();
-
+            _appleManager = FindObjectOfType<LifetimeScope>()?.Container.Resolve<AppleManager>();
+        
         }
 
 

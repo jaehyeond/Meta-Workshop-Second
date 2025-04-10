@@ -225,7 +225,7 @@ PrefabInstance:
       addedObject: {fileID: 1193273983838458752}
     - targetCorrespondingSourceObject: {fileID: 259043858979018685, guid: 53b455a24a377464b8de74f2900c2c36, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 1301932231973385349}
+      addedObject: {fileID: 2143060372630105062}
   m_SourcePrefab: {fileID: 100100000, guid: 53b455a24a377464b8de74f2900c2c36, type: 3}
 --- !u!4 &706778495716921207 stripped
 Transform:
@@ -276,10 +276,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
   _initialSnakeSpeed: 5
-  _bodySegmentPrefab: {fileID: 0}
-  _valueIncrement: 1
-  _segmentSpacing: 1
   _snake: {fileID: 5818919615701227070}
+  _networkHeadValue:
+    m_InternalValue: 2
 --- !u!114 &6442731360011339192
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -311,7 +310,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 56706c018a2e4c2ea6d4ac70c7991520, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!114 &1301932231973385349
+--- !u!114 &2143060372630105062
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
