@@ -1,21 +1,24 @@
 using UnityEngine;
 using TMPro;
+using Unity.Assets.Scripts.Objects;
+using Unity.Netcode;
 
 /// <summary>
 /// Snake의 몸통 세그먼트를 관리하는 클래스
 /// </summary>
-public class SnakeBodySegment : MonoBehaviour
+public class SnakeBodySegment : BaseObject
 {
     [SerializeField] private TextMeshPro _valueText;  // 값을 표시할 TextMeshPro
-    
-    private int _value = 2;  // 기본값
+    private readonly NetworkVariable<int> _value = new(2, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+    // private int _value = 2;  // 기본값
 
     public int Value
     {
-        get => _value;
+        get => _value.Value;
         set
         {
-            _value = value;
+            _value.Value = value;
             UpdateValueDisplay();
         }
     }
@@ -25,7 +28,7 @@ public class SnakeBodySegment : MonoBehaviour
     /// </summary>
     public void SetValue(int value)
     {
-        _value = value;
+        _value.Value = value;
         UpdateValueDisplay();
     }
     
@@ -34,7 +37,7 @@ public class SnakeBodySegment : MonoBehaviour
     /// </summary>
     public int GetValue()
     {
-        return _value;
+        return _value.Value;
     }
     
     /// <summary>
@@ -44,7 +47,14 @@ public class SnakeBodySegment : MonoBehaviour
     {
         if (_valueText != null)
         {
-            _valueText.text = _value.ToString();
+            _valueText.text = _value.Value.ToString();
         }
+    }
+
+    public override void OnNetworkSpawn()
+    {
+        base.OnNetworkSpawn();
+        Debug.Log($"[Client SPAWN] Segment {NetworkObjectId}: SpawnPos={transform.position}");
+        // NetworkVariable 값 변경 구독 등 필요한 로직 추가
     }
 } 

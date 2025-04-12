@@ -18,7 +18,6 @@ namespace Unity.Assets.Scripts.Module.ApplicationLifecycle.Installers
 
             builder.Register<ObjectManager>(Lifetime.Singleton);
             // builder.Register<INetworkMediator, NetworkMediator>(Lifetime.Singleton);
-            builder.Register<NetworkMediator>(Lifetime.Singleton).As<INetworkMediator>();
 
             _debugClassFacade?.LogInfo(GetType().Name, "오브젝트 모듈 설치 완료");
         }

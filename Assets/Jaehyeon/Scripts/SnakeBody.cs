@@ -1,10 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.Assets.Scripts.Objects;
 using UnityEngine;
 
 
-    public class SnakeBody : MonoBehaviour
+    public class SnakeBody : BaseObject
     {
         [SerializeField] private Transform _head;
         [SerializeField] private float _detailDistance = 1f;

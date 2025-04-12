@@ -26,6 +26,7 @@ public class BasicGameScene : BaseScene
     [Inject] private ResourceManager _resourceManager;
 
     [Inject] private AppleManager _appleManager;
+    [Inject] private PlayerSnakeController _playerSnakeController;
 	// greenslime 몬스터 ID
 	
 	// 스폰된 몬스터 관리 리스트
@@ -44,36 +45,29 @@ public class BasicGameScene : BaseScene
  
       	_uiManager.ShowBaseUI<UI_Joystick>();
         if (NetworkManager.Singleton.IsServer)
-        {
-            _appleManager.SpawnInitialApples();
-        }
+            {
+                Debug.Log($"[{GetType().Name}] 서버 초기화 시작.");
+                _appleManager.SpawnInitialApples();
+            }
         return true;
     }
 
-    public override void Clear()
-    {
+        public override void Clear()
+        {
+            if (NetworkManager.Singleton.IsServer)
+            {
+                 Debug.Log($"[{GetType().Name}] 서버 정리 시작.");
+                 UnsubscribeServerEvents(); // 서버 이벤트 구독 해제
+            }
+        }
 
-    }
+        private void SubscribeServerEvents()
+        {
+        }
 
-    private void OnEnable()
-    {
-        // 이벤트 구독은 Init에서만 수행
-    }
-
-    private void OnDisable()
-    {
-        // 이벤트 해제는 Clear에서만 수행
-    }
-
-    private void SubscribeEvents()
-    {
-
-    }
-
-    private void UnsubscribeEvents()
-    {
-
-    }
+        private void UnsubscribeServerEvents()
+        {
+        }
 
 
 

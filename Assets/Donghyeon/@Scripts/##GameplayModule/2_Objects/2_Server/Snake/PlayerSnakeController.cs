@@ -7,101 +7,81 @@ using VContainer;
 using VContainer.Unity;
 using System.Linq;
 using Unity.Assets.Scripts.Resource;
+using Unity.Assets.Scripts.Objects; // BaseObject 타입 참조를 위해 추가
 
-/// <summary>
-/// 플레이어 스네이크의 네트워크 동기화와 제어를 담당하는 메인 컨트롤러
-/// NetworkBehaviour를 상속받아 네트워크 기능을 구현
-/// </summary>
+
 public class PlayerSnakeController : NetworkBehaviour
 {
     #region Dependencies
     /// <summary>게임 매니저 - 게임 상태 및 이벤트 관리</summary>
     private GameManager _gameManager;
-    /// <summary>사과 매니저 - 사과 생성 및 충돌 처리</summary>
-    private AppleManager _appleManager;
-    /// <summary>리소스 매니저 - 프리팹 및 에셋 로드</summary>
     private ResourceManager _resourceManager;
-    /// <summary>스네이크 몸체 핸들러 - 몸체 세그먼트 관리</summary>
     private SnakeBodyHandler _snakeBodyHandler;
+    private ObjectManager _objectManager;
+    private NetUtils _netUtils;
     #endregion
 
-    #region Settings
-    [Header("Movement Settings")]
-    /// <summary>스네이크의 초기 이동 속도</summary>
-    [SerializeField] private float _initialSnakeSpeed = 5f;
-    /// <summary>스네이크의 기본 이동 속도</summary>
-    [SerializeField] private float _movementSpeed = 3f;
-    /// <summary>스네이크의 회전 속도 (도/초)</summary>
-    [SerializeField] private float _rotationSpeed = 180f;
-    /// <summary>이동 시 부드러운 움직임을 위한 보간 계수</summary>
-    [SerializeField] private float _movementSmoothing = 0.05f;
-    #endregion
+
 
     #region Core Components
     [Header("Core Components")]
-    /// <summary>실제 스네이크 로직을 담당하는 Snake 컴포넌트</summary>
     [SerializeField] public Snake _snake;
     #endregion
 
     #region Runtime Variables
-    /// <summary>스네이크 몸체 세그먼트 GameObject 리스트</summary>
-    private List<GameObject> _bodySegments = new List<GameObject>();
-    /// <summary>스네이크 몸체 세그먼트 컴포넌트 리스트</summary>
+    // SnakeBodyHandler 중복 초기화 방지 플래그
+    private bool _isBodyHandlerInitialized = false;
+
     private List<SnakeBodySegment> _bodySegmentComponents = new List<SnakeBodySegment>();
     /// <summary>스네이크의 이동 기록을 저장하는 큐</summary>
-    private Queue<Vector3> _moveHistory = new Queue<Vector3>();
-    /// <summary>첫 번째 세그먼트의 속도 벡터 (SmoothDamp용)</summary>
-    private Vector3 _firstSegmentVelocity = Vector3.zero;
-    /// <summary>각 세그먼트의 속도 벡터 리스트 (SmoothDamp용)</summary>
-    private List<Vector3> _segmentVelocities = new List<Vector3>();
+   
     #endregion
     
     #region Network Variables
     /// <summary>네트워크를 통해 동기화되는 플레이어 점수</summary>
     private readonly NetworkVariable<int> _networkScore = new(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
     /// <summary>네트워크를 통해 동기화되는 스네이크 크기</summary>
-    private readonly NetworkVariable<int> _networkSize = new(1, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+    private readonly NetworkVariable<int> _networkBodyCount = new(1, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
     /// <summary>네트워크를 통해 동기화되는 플레이어 ID</summary>
     private readonly NetworkVariable<NetworkString> _networkPlayerId = new("", NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
-    /// <summary>네트워크를 통해 동기화되는 스네이크 헤드 값</summary>
-    public NetworkVariable<int> _networkHeadValue = new(2, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+    /// <summary>네트워크를 통해 동기화되는 세그먼트 리스트</summary>
     #endregion
 
+
     #region Unity Lifecycle
-    /// <summary>
-    /// 네트워크 스폰 시 호출되는 메서드
-    /// 서버/클라이언트/오너에 따라 다른 초기화 수행
-    /// </summary>
+
+
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
+        var lifetimeScope = FindAnyObjectByType<LifetimeScope>();
+        if (lifetimeScope != null)
+        {
+            _gameManager = lifetimeScope.Container.Resolve<GameManager>();
+            _resourceManager = lifetimeScope.Container.Resolve<ResourceManager>();
+            _objectManager = lifetimeScope.Container.Resolve<ObjectManager>();
+            _netUtils = lifetimeScope.Container.Resolve<NetUtils>();
+        }
 
+        // Log network state
+        Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] OnNetworkSpawn - OwnerClientId: {OwnerClientId}, LocalClientId: {NetworkManager.Singleton.LocalClientId}, IsServer: {IsServer}, IsClient: {IsClient}, IsOwner: {IsOwner}");
+        _snake = GetComponentInChildren<Snake>(true); 
+        // 서버에서만 NetworkVariable 초기화 및 권한 있는 SnakeBodyHandler 초기화
         if (IsServer)
         {
             InitializeServerState();
         }
-
-        if (IsClient)
+        // 클라이언트 또는 초기화되지 않은 서버에서 SnakeBodyHandler 초기화 (시각적 요소 등에 필요)
+        if (!_isBodyHandlerInitialized)
         {
-            SubscribeToNetworkVariables();
+            InitializeBodyHandler();
         }
 
+        // 소유자만 입력 처리 및 카메라 설정
         if (IsOwner)
         {
+            _gameManager.OnMoveDirChanged += HandleMoveDirChanged;
             StartCoroutine(FollowPlayerWithCamera());
-            var lifetimeScope = FindObjectOfType<LifetimeScope>();
-            if (lifetimeScope != null)
-            {
-                _gameManager = lifetimeScope.Container.Resolve<GameManager>();
-                _appleManager = lifetimeScope.Container.Resolve<AppleManager>();
-                _resourceManager = lifetimeScope.Container.Resolve<ResourceManager>();
-                
-                if (_gameManager != null)
-                {
-                    _gameManager.OnMoveDirChanged += HandleMoveDirChanged;
-                    Debug.Log($"[{GetType().Name}] GameManager 이벤트 구독 완료.");
-                }
-            }
         }
     }
 
@@ -113,414 +93,338 @@ public class PlayerSnakeController : NetworkBehaviour
     {
         base.OnNetworkDespawn();
 
-        if (IsClient)
-        {
-            UnsubscribeFromNetworkVariables();
-        }
-
-        if (IsOwner)
+        if (IsClient){}
+  
+        if (IsOwner && _gameManager != null)
         {
             _gameManager.OnMoveDirChanged -= HandleMoveDirChanged;
         }
     }
+
     #endregion
 
     #region Initialization
     /// <summary>
-    /// 서버 상태 초기화
-    /// 스네이크 데이터 설정 및 컴포넌트 초기화
+    /// 서버 상태 초기화 (NetworkVariables)
     /// </summary>
     private void InitializeServerState()
     {
-        Debug.Log($"[{GetType().Name}] 서버: 스네이크(OwnerClientId: {OwnerClientId}) 스폰됨. 초기 데이터 설정.");
+        if (!IsServer) return;
 
-        // SnakeBodyHandler 초기화
+        Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] InitializeServerState: OwnerClientId={OwnerClientId}.");
+
+        // Initialize Network Variables
+        string playerId = "Player_" + OwnerClientId;
+        int initialScore = 0;
+        int initialSize = 1; 
+
+        // 중복 호출 방지를 위해 값 변경 확인 (선택 사항)
+        if (_networkPlayerId.Value != playerId) _networkPlayerId.Value = playerId;
+        if (_networkScore.Value != initialScore) _networkScore.Value = initialScore;
+        if (_networkBodyCount.Value != initialSize) _networkBodyCount.Value = initialSize;
+
+        Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] NetworkVariables Set: PlayerID={_networkPlayerId.Value}, Score={_networkScore.Value}, BodyCount={_networkBodyCount.Value}");
+
+        InitializeBodyHandler(); 
+    }
+
+    /// <summary>
+    /// SnakeBodyHandler 초기화 (서버/클라이언트 공통, 중복 방지 포함)
+    /// </summary>
+    private void InitializeBodyHandler()
+    {
+        if (_isBodyHandlerInitialized) return; // 이미 초기화되었으면 반환
+
         _snakeBodyHandler = GetComponent<SnakeBodyHandler>();
         if (_snakeBodyHandler == null)
         {
             _snakeBodyHandler = gameObject.AddComponent<SnakeBodyHandler>();
+            Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] Added SnakeBodyHandler.");
         }
-        _snakeBodyHandler.Initialize(_snake);
-        
-        // 플레이어 데이터 로드
-        string playerId = "Player_" + OwnerClientId;
-        int initialScore = 0;
-        int initialSize = 1;
-        int initialHeadValue = 2;
 
-        _networkPlayerId.Value = playerId;
-        _networkScore.Value = initialScore;
-        _networkSize.Value = initialSize;
-        _networkHeadValue.Value = initialHeadValue;
-
-        // 스네이크 헤드 속도 초기화
-        if (_snake != null && _snake.Head != null)
+        try
         {
-            _snake.Head.Construct(_initialSnakeSpeed);
-            _snake.Head.SetValue(2);
-            Debug.Log($"[{GetType().Name}] 서버: 스네이크 헤드 속도 초기화 완료 ({_initialSnakeSpeed})");
+            _snakeBodyHandler.Initialize(_snake);
+            _isBodyHandlerInitialized = true; // 초기화 성공 시 플래그 설정
+            Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] Initialized SnakeBodyHandler. IsServer={IsServer}");
         }
-        else
+        catch (System.Exception ex)
         {
-            Debug.LogError($"[{GetType().Name}] 서버: Snake 또는 SnakeHead 참조가 null입니다!");
+            Debug.LogError($"[{GetType().Name} ID:{NetworkObjectId}] Error initializing SnakeBodyHandler: {ex.Message}");
         }
     }
 
-    /// <summary>
-    /// 카메라가 플레이어를 따라가도록 하는 코루틴
-    /// 필요한 컴포넌트가 준비될 때까지 대기
-    /// </summary>
+
     private IEnumerator FollowPlayerWithCamera()
     {
-        Debug.Log($"[{GetType().Name}] 카메라 추적 코루틴 시작. CameraProvider 및 Snake Head 대기.");
-
-        float waitTime = 0f;
-        const float maxWaitTime = 5f;
-
-        while ((CameraProvider.Instance == null || _snake == null || _snake.Head == null) && waitTime < maxWaitTime)
+        if (_snake == null)
         {
-            yield return null;
+             Debug.LogError($"[{GetType().Name} Owner - ID:{NetworkObjectId}] FollowPlayerWithCamera 코루틴 시작 시 _snake가 null입니다!");
+             yield break;
+        }
+
+        Debug.Log($"[{GetType().Name} Owner - ID:{NetworkObjectId}] 카메라 추적 코루틴 시작. CameraProvider 및 Snake Head 대기.");
+        float waitTime = 0f;
+        const float maxWaitTime = 5f; // 5초간 대기
+
+        // CameraProvider.Instance, _snake, _snake.Head가 모두 준비될 때까지 대기
+        while ((CameraProvider.Instance == null || _snake.Head == null) && waitTime < maxWaitTime)
+        {
+            if (CameraProvider.Instance == null) Debug.LogWarning($"[{GetType().Name} Owner - ID:{NetworkObjectId}] CameraProvider 대기 중...");
+            if (_snake.Head == null) Debug.LogWarning($"[{GetType().Name} Owner - ID:{NetworkObjectId}] Snake Head 대기 중...");
+
+            yield return null; // 다음 프레임까지 대기
             waitTime += Time.deltaTime;
         }
-
-        if (CameraProvider.Instance != null && _snake != null && _snake.Head != null)
+        // 대기 후 확인
+        if (CameraProvider.Instance != null && _snake.Head != null)
         {
-            try
-            {
-                CameraProvider.Instance.Follow(_snake.Head.transform); 
-                Debug.Log($"[{GetType().Name}] 카메라가 스네이크 헤드({_snake.Head.name})를 따라갑니다.");
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[{GetType().Name}] CameraProvider.Follow 호출 중 오류: {ex.Message}\\n{ex.StackTrace}");
-            }
-        }
-        else
-        {
-            if(CameraProvider.Instance == null) Debug.LogError($"[{GetType().Name}] CameraProvider.Instance를 찾지 못했습니다.");
-            if(_snake == null) Debug.LogError($"[{GetType().Name}] _snake 참조가 null입니다.");
-            else if (_snake.Head == null) Debug.LogError($"[{GetType().Name}] _snake.Head 참조가 null입니다.");
-            
-            Debug.LogError($"[{GetType().Name}] 카메라 추적 설정 실패 (대기 시간 초과 또는 컴포넌트 누락).");
+             Debug.Log($"[{GetType().Name} Owner - ID:{NetworkObjectId}] CameraProvider와 Snake Head 준비 완료. 카메라 추적 시작.");
+             CameraProvider.Instance.Follow(_snake.Head.transform);
         }
     }
+
     #endregion
-
-    #region Network Variable Handling
-    /// <summary>
-    /// 네트워크 변수 변경 이벤트 구독
-    /// </summary>
-    private void SubscribeToNetworkVariables()
-    {
-        Debug.Log($"[{GetType().Name}] 클라이언트: NetworkVariable 변경 구독 시작");
-        _networkHeadValue.OnValueChanged += OnHeadValueChanged;
-    }
-
-    /// <summary>
-    /// 네트워크 변수 변경 이벤트 구독 해지
-    /// </summary>
-    private void UnsubscribeFromNetworkVariables()
-    {
-        Debug.Log($"[{GetType().Name}] 클라이언트: NetworkVariable 변경 구독 해지 시작");
-        if (_networkHeadValue != null) _networkHeadValue.OnValueChanged -= OnHeadValueChanged;
-    }
-
-    /// <summary>
-    /// 헤드 값 변경 시 호출되는 콜백
-    /// 서버에서 세그먼트 추가 및 값 업데이트 처리
-    /// </summary>
-    private void OnHeadValueChanged(int previousValue, int newValue)
-    {
-        Debug.Log($"[{GetType().Name}] 헤드 값 변경 감지: {previousValue} -> {newValue}");
-        UpdateHeadValueDisplay(newValue);
-        
-        if (IsServer)
-        {
-            float log2Value = Mathf.Log(newValue, 2);
-            if (Mathf.Approximately(log2Value, Mathf.Round(log2Value)))
-            {
-                AddBodySegmentServerRpc();
-                _networkScore.Value += newValue;
-            }
-            
-            UpdateBodyValues(newValue);
-        }
-    }
-    #endregion
-
-    #region Movement and Body Management
-    /// <summary>
-    /// 고정 업데이트 - 물리 기반 업데이트
-    /// 서버에서만 몸체 세그먼트 위치 업데이트
-    /// </summary>
     private void FixedUpdate()
     {
-        if (!IsServer) return;
+        // 서버만 모든 스네이크의 권한 있는 위치 계산 및 업데이트
+        if (IsServer)
+        {
+            // _snake와 _snakeBodyHandler가 null인지 확인
+            if (_snake == null || _snake.Head == null || _snakeBodyHandler == null)
+            {
+                return;
+            }
+ 
+            _snakeBodyHandler.UpdateBodySegmentsPositions();
+            SyncPositionsClientRpc(_snake.Head.transform.position, _snake.Head.transform.rotation);
+        }
+    }
+
+    [ClientRpc]
+    private void SyncPositionsClientRpc(Vector3 headPosition, Quaternion headRotation)
+    {
+        if (IsServer) return; // 서버인 경우 이미 계산됨
         
         if (_snake != null && _snake.Head != null)
         {
+            // 클라이언트에서 Head 위치 업데이트
+            _snake.Head.transform.position = headPosition;
+            _snake.Head.transform.rotation = headRotation;
+            
+            // 클라이언트에서 Body 세그먼트 위치 업데이트
             _snakeBodyHandler.UpdateBodySegmentsPositions();
         }
     }
 
-    /// <summary>
-    /// 헤드 값 표시 업데이트
-    /// </summary>
-    private void UpdateHeadValueDisplay(int value)
+
+ 
+    [ServerRpc]
+    public void NotifyAppleEatenServerRpc(int appleValue, ulong appleNetworkId)
     {
-        if (_snake != null && _snake.Head != null)
+        // 이 RPC는 소유자 클라이언트가 호출
+        Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] NotifyAppleEatenServerRpc 수신: Value=+{appleValue}, AppleID={appleNetworkId}");
+        
+        _networkScore.Value += appleValue; 
+        _snake._networkHeadValue.Value += appleValue; // Snake의 _networkHeadValue 사용
+        try 
         {
-            _snake.Head.SetValue(value);
+            // 호스트가 먹은 사과인 경우
+            if (IsHost || IsServer)
+            {
+                // SpawnedObjects에서 사과 찾기
+                if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(appleNetworkId, out NetworkObject appleNetObj))
+                {
+                    if (appleNetObj.TryGetComponent<Apple>(out var apple))
+                    {
+                        Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 서버에서 사과 제거: AppleID={appleNetworkId}");
+                        _objectManager.Despawn(apple);
+                    }
+                }
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[{GetType().Name} Server ID:{NetworkObjectId}] 사과 제거 중 오류: {ex.Message}");
+        }
+        
+        // 새 사과 생성 (어떤 경우든 항상 새 사과 생성)
+        try
+        {
+            Vector3 randomPosition = Util.GetRandomPosition();
+            randomPosition.y = 0f;
+            var newApple = _objectManager.Spawn<BaseObject>(randomPosition, Quaternion.identity, prefabName: "Apple");
+            Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 새 사과 생성됨: 위치={randomPosition}");
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[{GetType().Name} Server ID:{NetworkObjectId}] 새 사과 생성 중 오류: {ex.Message}");
         }
     }
 
-    /// <summary>
-    /// 이동 방향 변경 이벤트 핸들러
-    /// 오너 클라이언트에서만 서버로 RPC 전송
-    /// </summary>
-    private void HandleMoveDirChanged(Vector2 moveDirection)
+
+    [ServerRpc]
+    public void NotifyHeadValueChangedServerRpc(int previousValue, int newValue)
     {
-        if (!IsOwner) return;
-        UpdateMoveDirectionServerRpc(moveDirection);
+        // 이 RPC는 서버 내부 로직이나 다른 이벤트에 의해 호출될 수 있음
+         Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] NotifyHeadValueChangedServerRpc 수신: {previousValue} -> {newValue}");
+        AddBodySegmentOnServer();
+        UpdateBodyValuesOnServer(newValue);
     }
 
-    /// <summary>
-    /// 서버 RPC: 이동 방향 업데이트
-    /// 서버에서 스네이크 방향 변경 및 클라이언트 동기화
-    /// </summary>
+    #region Movement and Body Management
+
+    private void HandleMoveDirChanged(Vector2 moveDirection)
+    {
+        if (IsOwner)
+        {
+            UpdateMoveDirectionServerRpc(moveDirection);
+        }
+    }
+
+
     [ServerRpc]
     private void UpdateMoveDirectionServerRpc(Vector2 moveDirection)
     {
-        if (!IsServer) return;
-
-
-        if (_snake == null || _snake.Head == null)
+        if (moveDirection.sqrMagnitude > 0.01f)
         {
-        Debug.LogError($"[{GetType().Name}] 서버: Snake 또는 SnakeHead 참조가 null입니다!");
-        return;
-        }
-
-        if (_snake != null && _snake.Head != null)
-        {
-            if (moveDirection.sqrMagnitude > 0.01f)
-            {
-                Vector3 currentPosition = _snake.Head.transform.position;
-                Vector3 targetDirection = new Vector3(moveDirection.x, 0, moveDirection.y).normalized;
-                Vector3 targetPosition = currentPosition + targetDirection;
-                _snake.Head.LookAt(targetPosition);
-
-                Vector3 moveForward = _snake.Head.transform.forward;
-                UpdateDirectionClientRpc(moveForward);
-            }
-        }
-        else
-        {
-            Debug.LogError($"[{GetType().Name}] 서버: RPC 실행 중 Snake 또는 SnakeHead 참조가 null입니다!");
+            Vector3 currentPosition = _snake.Head.transform.position;
+            Vector3 targetDirection = new Vector3(moveDirection.x, 0, moveDirection.y).normalized;
+            Vector3 targetPosition = currentPosition + targetDirection;
+            _snake.Head.LookAt(targetPosition);
+            Vector3 newForwardDirection = _snake.Head.transform.forward;
+            UpdateDirectionClientRpc(newForwardDirection);
         }
     }
 
-    /// <summary>
-    /// 클라이언트 RPC: 방향 업데이트
-    /// 서버에서 설정한 방향으로 클라이언트 동기화
-    /// </summary>
+
     [ClientRpc]
     private void UpdateDirectionClientRpc(Vector3 direction)
     {
         if (IsServer) return;
-
-        if (_snake == null || _snake.Head == null)
-        {
-        Debug.LogError($"[{GetType().Name}] 클라이언트: Snake 또는 SnakeHead 참조가 null입니다!");
-        return;
-        }
-
-     _snake.Head.SetTargetDirectionFromServer(direction);
+        _snake.SetHeadTargetDirection(direction);
     }
-    // [ClientRpc]
-    // private void UpdateDirectionClientRpc(Vector3 direction)
-    // {
-    //     if (IsServer) return;
 
-    //     if (_snake != null && _snake.Head != null)
-    //     {
-    //         _snake.Head.SetTargetDirectionFromServer(direction);
-    //     }
-    // }
-    #endregion
 
-    #region Body Segment Management
     /// <summary>
-    /// 서버 RPC: 새 몸체 세그먼트 추가
+    /// 새 몸체 세그먼트 추가 (서버 전용 로직)
     /// 서버에서 세그먼트 생성 및 네트워크 동기화
     /// </summary>
-    [ServerRpc]
-    private void AddBodySegmentServerRpc()
+    private void AddBodySegmentOnServer()
     {
-        if (!IsServer) return;
-
-        Debug.Log($"[{GetType().Name}] 서버: 새 Body 세그먼트 생성 시작");
-
-        if (_resourceManager == null)
-        {
-            var lifetimeScope = FindObjectOfType<LifetimeScope>();
-            if (lifetimeScope != null)
-            {
-                _resourceManager = lifetimeScope.Container.Resolve<ResourceManager>();
-            }
-            
-            if (_resourceManager == null)
-            {
-                Debug.LogError($"[{GetType().Name}] ResourceManager를 찾을 수 없습니다!");
-                return;
-            }
-        }
-
-        GameObject bodySegmentPrefab = _resourceManager.Load<GameObject>("Body Detail");
-        if (bodySegmentPrefab == null)
-        {
-            Debug.LogError($"[{GetType().Name}] Body Detail 프리팹을 로드할 수 없습니다!");
-            return;
-        }
-
         Vector3 spawnPosition;
         Quaternion spawnRotation;
-        
-        if (_snakeBodyHandler.GetBodySegmentCount() > 0)
+
+        // 기존 세그먼트가 있는지 확인하고 마지막 세그먼트 또는 헤드를 참조로 사용
+        BaseObject referenceObj = _snakeBodyHandler.GetBodySegmentCount() > 0 ? _snakeBodyHandler.GetLastSegment() : null;
+
+        if (referenceObj == null)
         {
-            GameObject lastSegment = _snakeBodyHandler.GetLastSegment();
-            spawnPosition = lastSegment.transform.position - lastSegment.transform.forward * _snakeBodyHandler.GetSegmentSpacing();
-            spawnRotation = lastSegment.transform.rotation;
+            if (_snakeBodyHandler.GetBodySegmentCount() > 0)
+            {
+                Debug.LogError($"[{GetType().Name} Server - ID:{NetworkObjectId}] AddBodySegmentOnServer: 마지막 세그먼트를 찾을 수 없습니다!");
+                return;
+            }
+            referenceObj = _snake.Head.GetComponent<BaseObject>();
         }
-        else
-        {
-            spawnPosition = _snake.Head.transform.position - _snake.Head.transform.forward * _snakeBodyHandler.GetSegmentSpacing();
-            spawnRotation = _snake.Head.transform.rotation;
-        }
+
+        // 세그먼트 위치 및 회전 계산
+        spawnPosition = referenceObj.transform.position - referenceObj.transform.forward * _snakeBodyHandler.GetSegmentSpacing();
+        spawnRotation = referenceObj.transform.rotation;
 
         try
         {
-            GameObject segment = Instantiate(bodySegmentPrefab, spawnPosition, spawnRotation);
+            // 서버에서 세그먼트 생성
+            BaseObject segment = _objectManager.Spawn<BaseObject>(spawnPosition, spawnRotation, prefabName: "Body Detail");
             SnakeBodySegment segmentComponent = segment.GetComponent<SnakeBodySegment>();
-            
+
             if (segmentComponent != null)
             {
-                int segmentValue = CalculateSegmentValue();
+                int segmentValue = _snakeBodyHandler.CalculateSegmentValue();
                 segmentComponent.SetValue(segmentValue);
             }
             
-            NetworkObject networkObject = segment.GetComponent<NetworkObject>();
-            if (networkObject != null)
-            {
-                networkObject.Spawn();
-                segment.transform.SetParent(transform, true);
+            segment.transform.SetParent(_snake.transform, true);
+            
+            _snakeBodyHandler.AddBodySegment(segment, segmentComponent);
+            _networkBodyCount.Value++; // 네트워크 변수 업데이트
                 
-                _snakeBodyHandler.AddBodySegment(segment, segmentComponent);
-                _networkScore.Value += segmentComponent?.Value ?? 2;
                 
-                NotifySegmentAddedClientRpc(_snakeBodyHandler.GetBodySegmentCount() - 1, segmentComponent?.Value ?? 2);
-            }
-            else
-            {
-                Debug.LogError($"[{GetType().Name}] 세그먼트에 NetworkObject가 없습니다!");
-                Destroy(segment);
-            }
+            Debug.Log($"[{GetType().Name} Server - ID:{NetworkObjectId}] 세그먼트 추가됨: 위치={spawnPosition}, 회전={spawnRotation}");
         }
         catch (System.Exception ex)
         {
-            Debug.LogError($"[{GetType().Name}] 세그먼트 생성 중 오류: {ex.Message}");
+            Debug.LogError($"[{GetType().Name} Server - ID:{NetworkObjectId}] 세그먼트 생성 중 오류: {ex.Message}\n{ex.StackTrace}");
         }
     }
-
+    
     /// <summary>
-    /// 세그먼트 값 계산
-    /// 헤드 값과 세그먼트 위치에 따라 2의 제곱수 패턴으로 계산
-    /// </summary>
-    private int CalculateSegmentValue()
-    {
-        int headValue = _networkHeadValue.Value;
-        float log2HeadValue = Mathf.Log(headValue, 2);
-        int headPower = (int)Mathf.Round(log2HeadValue);
-        
-        int segmentPower = headPower - _snakeBodyHandler.GetBodySegmentCount() - 1;
-        return segmentPower > 0 ? (int)Mathf.Pow(2, segmentPower) : 2;
-    }
-
-    /// <summary>
-    /// 클라이언트 RPC: 새 세그먼트 추가 알림
-    /// 클라이언트에서 새 세그먼트 값 설정
-    /// </summary>
-    [ClientRpc]
-    private void NotifySegmentAddedClientRpc(int segmentIndex, int segmentValue)
-    {
-        if (IsServer) return;
-        
-        Debug.Log($"[{GetType().Name}] 클라이언트: 새 세그먼트 추가 알림 (인덱스: {segmentIndex}, 값: {segmentValue})");
-        
-        if (_bodySegmentComponents.Count > segmentIndex)
-        {
-            var segmentComponent = _bodySegmentComponents[segmentIndex];
-            if (segmentComponent != null)
-            {
-                segmentComponent.SetValue(segmentValue);
-                Debug.Log($"[{GetType().Name}] 클라이언트: 세그먼트[{segmentIndex}] 값 설정됨: {segmentValue}");
-            }
-        }
-    }
-
-    /// <summary>
-    /// 몸체 세그먼트 값 업데이트
+    /// 몸체 세그먼트 값 업데이트 (서버 전용 로직)
     /// 헤드 값 변경 시 모든 세그먼트의 값 재계산
     /// </summary>
-    private void UpdateBodyValues(int headValue)
+    private void UpdateBodyValuesOnServer(int headValue)
     {
-        if (_bodySegmentComponents == null || _bodySegmentComponents.Count == 0) return;
+        int segmentCount = _snakeBodyHandler.GetBodySegmentCount();
+        if (segmentCount == 0) return;
 
-        try
+    try
+    {
+        // 1. _bodySegmentComponents 리스트와 실제 세그먼트 수 동기화 (한 번만 수행)
+        if (_bodySegmentComponents.Count < segmentCount)
         {
-            float log2HeadValue = Mathf.Log(headValue, 2);
-            int headPower = (int)Mathf.Round(log2HeadValue);
-            
-            Debug.Log($"[{GetType().Name}] 머리 값: {headValue}, 지수: {headPower}, 세그먼트 수: {_bodySegmentComponents.Count}");
-
-            for (int i = 0; i < _bodySegmentComponents.Count; i++)
+            // 기존 리스트 유지하며 부족한 부분만 채우기
+            int startIndex = _bodySegmentComponents.Count;
+            for (int i = startIndex; i < segmentCount; i++)
             {
-                SnakeBodySegment segment = _bodySegmentComponents[i];
-                if (segment == null) continue;
-
-                int segmentPower;
-                int segmentValue;
-                
-                if (i == _bodySegmentComponents.Count - 1)
+                if (i < _snakeBodyHandler._bodySegments.Count && _snakeBodyHandler._bodySegments[i] != null)
                 {
-                    segmentValue = 2;
-                }
-                else if (i == 0)
-                {
-                    segmentPower = headPower - 1;
-                    segmentValue = Mathf.Max(2, (int)Mathf.Pow(2, segmentPower));
+                    var segment = _snakeBodyHandler._bodySegments[i].GetComponent<SnakeBodySegment>();
+                    _bodySegmentComponents.Add(segment);
                 }
                 else
                 {
-                    segmentPower = headPower - i - 1;
-                    segmentValue = Mathf.Max(2, (int)Mathf.Pow(2, segmentPower));
+                    _bodySegmentComponents.Add(null);
                 }
-
-                segment.SetValue(segmentValue);
-                Debug.Log($"[{GetType().Name}] 세그먼트 #{i + 1} 값 설정: {segmentValue}");
             }
-
-            SyncBodyValuesClientRpc();
+            Debug.Log($"[{GetType().Name} Server - ID:{NetworkObjectId}] 컴포넌트 리스트 크기 조정: {startIndex} -> {_bodySegmentComponents.Count}");
         }
-        catch (System.Exception ex)
+
+        // 2. 헤드 값에 따른 세그먼트 값 계산
+        float log2HeadValue = Mathf.Log(headValue, 2);
+        int headPower = (int)Mathf.Round(log2HeadValue);
+
+        // 3. 세그먼트 값 설정 (필요한 인덱스 검사만 수행)
+        int validUpdates = 0;
+        for (int i = 0; i < Mathf.Min(segmentCount, _bodySegmentComponents.Count); i++)
         {
-            Debug.LogError($"[{GetType().Name}] UpdateBodyValues 오류: {ex.Message}");
-        }
-    }
+            var segment = _bodySegmentComponents[i];
+            if (segment == null) continue;
 
-    /// <summary>
-    /// 클라이언트 RPC: 몸체 값 동기화
-    /// 서버에서 계산된 값을 클라이언트에 동기화
-    /// </summary>
+            int segmentValue;
+            // 값 계산 로직 (간결화)
+            if (i == segmentCount - 1)
+                segmentValue = 2;
+            else if (i == 0)
+                segmentValue = Mathf.Max(2, (int)Mathf.Pow(2, headPower - 1));
+            else
+                segmentValue = Mathf.Max(2, (int)Mathf.Pow(2, headPower - i - 1));
+
+            segment.SetValue(segmentValue);
+            validUpdates++;
+        }
+
+        // 로그는 한 번만 출력
+        Debug.Log($"[{GetType().Name} Server - ID:{NetworkObjectId}] 서버: 총 {validUpdates}개 세그먼트 값 업데이트 완료");
+
+        // 4. 클라이언트 동기화 (한 번만 호출)
+        SyncBodyValuesClientRpc();
+    }
+    catch (System.Exception ex)
+    {
+        Debug.LogError($"[{GetType().Name} Server - ID:{NetworkObjectId}] UpdateBodyValuesOnServer 오류: {ex.Message}\n{ex.StackTrace}");
+    }
+}
+
     [ClientRpc]
     private void SyncBodyValuesClientRpc()
     {
@@ -528,11 +432,11 @@ public class PlayerSnakeController : NetworkBehaviour
         
         if (_snake == null || _snake.Head == null || _bodySegmentComponents.Count == 0) return;
         
-        int headValue = _snake.Head.Value;
+        int headValue = _snake.Head.Value; // Head.Value 속성 사용
         float log2 = Mathf.Log(headValue, 2);
         int headPower = (int)Mathf.Round(log2);
         
-        Debug.Log($"[{GetType().Name}] 클라이언트: 헤드 값={headValue}, 2^{headPower} 패턴으로 Body 값 업데이트");
+        Debug.Log($"[{GetType().Name} Client - ID:{NetworkObjectId}] 클라이언트: 헤드 값={headValue}, 2^{headPower} 패턴으로 Body 값 업데이트");
         
         for (int i = 0; i < _bodySegmentComponents.Count; i++)
         {
@@ -551,24 +455,9 @@ public class PlayerSnakeController : NetworkBehaviour
             }
             
             _bodySegmentComponents[i].SetValue(segmentValue);
-            Debug.Log($"[{GetType().Name}] 클라이언트: Body[{i}] 값={segmentValue}");
+            Debug.Log($"[{GetType().Name} Client - ID:{NetworkObjectId}] 클라이언트: Body[{i}] 값={segmentValue}");
         }
     }
     #endregion
-       // private void Die()
-    // {
-    //     if (!IsServer) return;
 
-    //     Debug.LogWarning($"[{GetType().Name}] 스네이크 사망 처리 (서버): OwnerClientId={OwnerClientId}");
-
-    //     NetworkObject networkObject = GetComponent<NetworkObject>();
-    //     if (networkObject != null)
-    //     {
-    //         networkObject.Despawn(true);
-    //     }
-    //     else
-    //     {
-    //         Destroy(gameObject);
-    //     }
-    // }
 }

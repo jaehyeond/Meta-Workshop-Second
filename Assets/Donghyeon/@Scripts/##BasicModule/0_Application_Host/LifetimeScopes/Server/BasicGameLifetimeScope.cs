@@ -16,7 +16,9 @@ public class BasicGameLifetimeScope : LifetimeScope
     // 필드 정의
 
     protected override void Configure(IContainerBuilder builder)
-    {
+    {   
+        base.Configure(builder);
+
         // 빈 상태로 둡니다
         Debug.Log($"[{GetType().Name}] Configure 메서드 실행");
 
@@ -51,6 +53,29 @@ public class BasicGameLifetimeScope : LifetimeScope
         ObjectManager _objectManager = null;
         _objectManager = Parent.Container.Resolve<ObjectManager>();
         builder.RegisterInstance(_objectManager);
+
+        NetworkManager _networkManager = null;
+        _networkManager = Parent.Container.Resolve<NetworkManager>();
+        builder.RegisterInstance(_networkManager);
+
+        NetUtils _netUtils = null;
+        _netUtils = Parent.Container.Resolve<NetUtils>();
+        builder.RegisterInstance(_netUtils);
+
+        builder.Register<PlayerSnakeController>(Lifetime.Singleton);
+        
+
+        builder.RegisterBuildCallback(container => {
+            try {
+                var PlayerSnakeController = container.Resolve<PlayerSnakeController>();
+
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"오브젝트 설정 중 오류 발생: {e.Message}\n{e.StackTrace}");
+            }
+        });
+        
     }
 
     

@@ -1,8 +1,9 @@
 ﻿using UnityEngine;
 using Unity.Netcode;
 using TMPro;
+using Unity.Assets.Scripts.Objects;
 
-public class SnakeHead : MonoBehaviour
+public class SnakeHead : BaseObject
 {
     private float _speed = 5f;
     private Quaternion _targetRotation;

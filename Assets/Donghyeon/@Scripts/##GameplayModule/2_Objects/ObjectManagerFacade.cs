@@ -19,7 +19,6 @@ public class ObjectManagerFacade : NetworkBehaviour
     // [Inject] public ObjectManager _objectManager;
     [Inject] private NetworkManager _networkManager;
     [Inject] public NetUtils _netUtils;
-    [Inject] private INetworkMediator _networkMediator;
     [Inject] public ResourceManager _resourceManager;
 
     [Inject] private DebugClassFacade _debugClassFacade;

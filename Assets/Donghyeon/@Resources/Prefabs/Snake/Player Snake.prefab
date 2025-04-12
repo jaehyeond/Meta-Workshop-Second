@@ -200,6 +200,22 @@ PrefabInstance:
       propertyPath: m_Layer
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 7525618918963508818, guid: 53b455a24a377464b8de74f2900c2c36, type: 3}
+      propertyPath: _mouthCollider
+      value: 
+      objectReference: {fileID: 7010408045826364179}
+    - target: {fileID: 7525618918963508818, guid: 53b455a24a377464b8de74f2900c2c36, type: 3}
+      propertyPath: _targetMask.m_Bits
+      value: 64
+      objectReference: {fileID: 0}
+    - target: {fileID: 8172886772292919964, guid: 53b455a24a377464b8de74f2900c2c36, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.29417133
+      objectReference: {fileID: 0}
+    - target: {fileID: 8172886772292919964, guid: 53b455a24a377464b8de74f2900c2c36, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.95575273
+      objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: 1574078057980336094, guid: 53b455a24a377464b8de74f2900c2c36, type: 3}
     m_RemovedGameObjects: []
@@ -215,9 +231,6 @@ PrefabInstance:
       insertIndex: 1
       addedObject: {fileID: 6302511397807208106}
     - targetCorrespondingSourceObject: {fileID: 259043858979018685, guid: 53b455a24a377464b8de74f2900c2c36, type: 3}
-      insertIndex: 2
-      addedObject: {fileID: 2257892316943076653}
-    - targetCorrespondingSourceObject: {fileID: 259043858979018685, guid: 53b455a24a377464b8de74f2900c2c36, type: 3}
       insertIndex: -1
       addedObject: {fileID: 6442731360011339192}
     - targetCorrespondingSourceObject: {fileID: 259043858979018685, guid: 53b455a24a377464b8de74f2900c2c36, type: 3}
@@ -225,7 +238,7 @@ PrefabInstance:
       addedObject: {fileID: 1193273983838458752}
     - targetCorrespondingSourceObject: {fileID: 259043858979018685, guid: 53b455a24a377464b8de74f2900c2c36, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 1301932231973385349}
+      addedObject: {fileID: 7594944605007813469}
   m_SourcePrefab: {fileID: 100100000, guid: 53b455a24a377464b8de74f2900c2c36, type: 3}
 --- !u!4 &706778495716921207 stripped
 Transform:
@@ -262,24 +275,6 @@ MonoBehaviour:
   AutoObjectParentSync: 1
   SyncOwnerTransformWhenParented: 1
   AllowOwnerToParent: 0
---- !u!114 &2257892316943076653
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4262908852080162769}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5c56aef6f65c4b34fa588955415fa6a0, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  ShowTopMostFoldoutHeaderGroup: 1
-  _initialSnakeSpeed: 5
-  _bodySegmentPrefab: {fileID: 0}
-  _valueIncrement: 1
-  _segmentSpacing: 1
-  _snake: {fileID: 5818919615701227070}
 --- !u!114 &6442731360011339192
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -293,7 +288,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
-  _playerSnakeController: {fileID: 2257892316943076653}
+  _playerSnakeController: {fileID: 0}
   _mouthCollider: {fileID: 7010408045826364179}
   _deathAngle: 100
   _targetMask:
@@ -311,7 +306,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 56706c018a2e4c2ea6d4ac70c7991520, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!114 &1301932231973385349
+--- !u!114 &7594944605007813469
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -320,33 +315,17 @@ MonoBehaviour:
   m_GameObject: {fileID: 4262908852080162769}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e96cb6065543e43c4a752faaa1468eb1, type: 3}
+  m_Script: {fileID: 11500000, guid: 5c56aef6f65c4b34fa588955415fa6a0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
-  NetworkTransformExpanded: 0
-  AuthorityMode: 0
-  TickSyncChildren: 0
-  UseUnreliableDeltas: 0
-  SyncPositionX: 1
-  SyncPositionY: 1
-  SyncPositionZ: 1
-  SyncRotAngleX: 1
-  SyncRotAngleY: 1
-  SyncRotAngleZ: 1
-  SyncScaleX: 1
-  SyncScaleY: 1
-  SyncScaleZ: 1
-  PositionThreshold: 0.001
-  RotAngleThreshold: 0.01
-  ScaleThreshold: 0.01
-  UseQuaternionSynchronization: 0
-  UseQuaternionCompression: 0
-  UseHalfFloatPrecision: 0
-  InLocalSpace: 0
-  SwitchTransformSpaceWhenParented: 0
-  Interpolate: 1
-  SlerpPosition: 0
+  _initialSnakeSpeed: 5
+  _movementSpeed: 3
+  _rotationSpeed: 180
+  _movementSmoothing: 0.05
+  _snake: {fileID: 5818919615701227070}
+  _networkHeadValue:
+    m_InternalValue: 2
 --- !u!4 &5321925656180278000 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8172886772292919964, guid: 53b455a24a377464b8de74f2900c2c36, type: 3}

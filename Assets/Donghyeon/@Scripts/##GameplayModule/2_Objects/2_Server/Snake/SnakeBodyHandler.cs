@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using Unity.Assets.Scripts.Objects;
 
 public class SnakeBodyHandler : MonoBehaviour
 {
@@ -7,7 +8,7 @@ public class SnakeBodyHandler : MonoBehaviour
     [SerializeField] private float _segmentSpacing = 0.17f;
     [SerializeField] private float _segmentFollowSpeed = 8f;
 
-    private List<GameObject> _bodySegments = new List<GameObject>();
+    public List<BaseObject> _bodySegments = new List<BaseObject>();
     private List<SnakeBodySegment> _bodySegmentComponents = new List<SnakeBodySegment>();
     private List<Vector3> _segmentVelocities = new List<Vector3>();
     private Vector3 _firstSegmentVelocity = Vector3.zero;
@@ -16,7 +17,7 @@ public class SnakeBodyHandler : MonoBehaviour
 
     public float GetSegmentSpacing() => _segmentSpacing;
 
-    public GameObject GetLastSegment()
+    public BaseObject GetLastSegment()
     {
         if (_bodySegments.Count > 0)
         {
@@ -31,7 +32,7 @@ public class SnakeBodyHandler : MonoBehaviour
         _segmentVelocities = new List<Vector3>();
         _firstSegmentVelocity = Vector3.zero;
     }
-
+//현재는 단순히 snakeBodyHandler.UpdateBodySegmentsPositions()를 호출하는 방식이지만, 실제 구현에서는 위치, 회전 등의 정보를 직렬화하여, 서버에서 클라이언트에 전송해야 합니다. 이 부분은 필요에 따라 추가 개발이 필요합니다
     public void UpdateBodySegmentsPositions()
     {
         if (_bodySegments.Count == 0 || _snake == null || _snake.Head == null) return;
@@ -51,7 +52,7 @@ public class SnakeBodyHandler : MonoBehaviour
             
             if (_bodySegments.Count > 0)
             {
-                GameObject firstSegment = _bodySegments[0];
+                BaseObject firstSegment = _bodySegments[0];
                 if (firstSegment == null) return;
                 
                 Vector3 targetPosition = headPosition - headForward * _segmentSpacing;
@@ -74,8 +75,8 @@ public class SnakeBodyHandler : MonoBehaviour
 
             for (int i = 1; i < _bodySegments.Count; i++)
             {
-                GameObject segment = _bodySegments[i];
-                GameObject prevSegment = _bodySegments[i - 1];
+                BaseObject segment = _bodySegments[i];
+                BaseObject prevSegment = _bodySegments[i - 1];
                 
                 if (segment == null || prevSegment == null) continue;
                 
@@ -118,8 +119,39 @@ public class SnakeBodyHandler : MonoBehaviour
             Debug.LogError($"[{GetType().Name}] 세그먼트 위치 업데이트 오류: {ex.Message}");
         }
     }
+    /// <summary>
+    /// 세그먼트 값 계산
+    /// 헤드 값과 세그먼트 위치에 따라 2의 제곱수 패턴으로 계산
+    /// </summary>
+    public int CalculateSegmentValue()
+    {
+        // 이제 Snake의 _networkHeadValue 사용
+        int headValue = _snake._networkHeadValue.Value;
+        float log2HeadValue = Mathf.Log(headValue, 2);
+        int headPower = (int)Mathf.Round(log2HeadValue);
+        
+        int segmentPower = headPower - _bodySegments.Count - 1;
+        return segmentPower > 0 ? (int)Mathf.Pow(2, segmentPower) : 2;
+    }
 
-    public void AddBodySegment(GameObject segment, SnakeBodySegment segmentComponent)
+
+    public void SetSegmentValue(int segmentIndex, int segmentValue)
+    {
+
+
+        if (_bodySegmentComponents.Count > segmentIndex && segmentIndex >= 0) // 인덱스 유효성 검사 추가
+        {
+            var segmentComponent = _bodySegmentComponents[segmentIndex];
+            if (segmentComponent != null)
+            {
+                segmentComponent.SetValue(segmentValue);
+            }
+      
+        }
+
+    }
+
+    public void AddBodySegment(BaseObject segment, SnakeBodySegment segmentComponent)
     {
         if (segment == null) return;
 

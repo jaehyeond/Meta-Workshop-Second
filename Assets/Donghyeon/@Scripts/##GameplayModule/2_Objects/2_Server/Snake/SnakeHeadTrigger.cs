@@ -22,175 +22,89 @@ public class SnakeHeadTrigger : NetworkBehaviour // NetworkBehaviour 상속 (IsS
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
-        if (IsOwner)
+        if (IsServer)
         {
-            Initialize();
+            _appleManager = FindObjectOfType<LifetimeScope>()?.Container.Resolve<AppleManager>();
         }
     }
-    private void Initialize()
-    {
-        _appleManager = FindObjectOfType<LifetimeScope>()?.Container.Resolve<AppleManager>();
-    }
-
 
     private void FixedUpdate()
     {
-        // FixedUpdate 호출 확인
-        // Debug.Log($"[{GetType().Name}] FixedUpdate - Is Server: {IsServer}"); 
+        // 충돌 감지는 소유자 클라이언트에서만 수행
+        if (!IsOwner) return;
 
-        if (!IsServer) return;
-
-        if (_playerSnakeController?._snake?.Head == null)
+        if (_playerSnakeController?._snake?.Head == null || _mouthCollider == null)
         {
-            // 참조 누락 확인
-            Debug.LogWarning($"[{GetType().Name}] PlayerSnakeController or Snake reference missing.");
+            // 참조 누락 확인 (Owner에서만)
+            // Debug.LogWarning($"[{GetType().Name}] Owner: PlayerSnakeController, Snake, or Collider reference missing.");
             return;
         }
-        // DetectCollisions 호출 직전 확인
-        //Debug.Log($"[{GetType().Name}] Calling DetectCollisions...");
         DetectCollisions();
     }
 
     private void DetectCollisions()
     {
-        // NonAlloc 버전 사용으로 가비지 생성 최소화
         var hits = Physics.OverlapSphereNonAlloc(
             _mouthCollider.transform.position,
             _mouthCollider.radius,
             _colliders,
             _targetMask,
-            QueryTriggerInteraction.Collide); // 트리거와의 충돌도 감지
+            QueryTriggerInteraction.Collide);
 
         for (var i = 0; i < hits; i++)
         {
+            // 충돌 처리 (Owner에서 호출됨)
             ProcessCollision(_colliders[i]);
-            _colliders[i] = null;
+            _colliders[i] = null; // 배열 재사용을 위해 클리어
         }
     }
 
-    // 감지된 충돌 처리 (서버에서 실행됨)
+    // 감지된 충돌 처리 (Owner에서 실행됨)
     private void ProcessCollision(Component target)
     {
-        // PlayerSnakeController 및 Snake 참조 확인
-        if (_playerSnakeController?._snake?.Head == null)
-        {
-            Debug.LogError($"[{GetType().Name}] PlayerSnakeController 또는 Snake 참조가 설정되지 않았습니다!");
-            return;
-        }
-        SnakeHead currentHead = _playerSnakeController._snake.Head;
+        if (_playerSnakeController == null) return; // PlayerSnakeController 참조 확인
 
         // 1. Apple과 충돌 처리
         if (target.TryGetComponent(out Apple apple))
         {
-            Debug.Log($"[{GetType().Name}] Apple 충돌 감지");
-            HandleAppleCollision(apple);
+            Debug.Log($"[{GetType().Name} Owner] Apple 충돌 감지. 서버에 알림 전송.");
+            // 서버에 사과 먹었음을 알리는 RPC 호출 (PlayerSnakeController에 추가될 예정)
+            // _playerSnakeController.NotifyAppleEatenServerRpc(apple.ValueIncrement);
+            // 중요: 클라이언트에서는 사과를 직접 비활성화하거나 파괴하지 않습니다.
+            //       서버가 RPC를 통해 상태를 변경하고, NetworkObject가 Despawn되면 클라이언트에서도 사라집니다.
         }
-        else if (target.TryGetComponent(out SnakeHead otherHead))
-        {            
-            if (otherHead == currentHead) return;
-
-            var angle = Vector3.Angle(currentHead.transform.forward, otherHead.transform.forward);
-        }
-            // 설정된 각도 이상이면 치명적 충돌로 간주
-        //     if (angle > _deathAngle)
-        //     {
-        //         _playerSnakeController.HandleFatalCollision(target.gameObject);
-        //     }
-        //     else
-        //     {
-        //         // 비치명적 충돌 처리 (예: 밀어내기, 경고 등) - 필요 시 구현
-        //          // _playerSnakeController.HandleNonFatalCollision(target.gameObject);
-        //     }
-        // }
-        // // 3. 그 외 (_targetMask에 포함된 다른 Collider) 충돌 처리 (예: 벽, 장애물)
-        // else
-        // {
-        //     _playerSnakeController.HandleFatalCollision(target.gameObject);
-        // }
+        // 2. 다른 스네이크 머리/몸통과 충돌 처리 (필요시 여기에 로직 추가 - Owner에서 감지)
+        // else if (target.TryGetComponent(out SnakeHead otherHead)) { ... }
+        // else if (target.TryGetComponent(out SnakeBodySegment otherSegment)) { ... }
+        // 3. 그 외 충돌 처리 (벽 등)
+        // else { ... }
     }
 
-
-        /// <summary>
-    /// SnakeHeadTrigger에서 호출되어 Apple과의 충돌을 처리합니다. (서버 전용)
-    /// </summary>
-    /// <param name="apple">충돌한 Apple 컴포넌트</param>
+    // HandleAppleCollision 메서드는 PlayerSnakeController의 ServerRpc로 로직이 이동되므로 제거하거나 주석 처리
+    /*
     public void HandleAppleCollision(Apple apple)
     {
-        if (!IsServer) return; // 서버에서만 실행
-
-        int valueIncrement = apple.ValueIncrement; // 수정: 실제 Apple의 값 사용
-
-        Debug.Log($"[{GetType().Name}] Apple 충돌 처리 (서버): 값 +{valueIncrement}");
-
-        // 헤드 값 증가 TODO
-        if (IsServer)
-        {
-            _playerSnakeController._networkHeadValue.Value += valueIncrement;
-        }
-
-        NetworkObject appleNetObj = apple.GetComponent<NetworkObject>();
-        if (appleNetObj != null)
-        {
-            apple.DespawnApple(apple);
-            // _playerSnakeController.DestroyObjectClientRpc(appleNetObj.NetworkObjectId);
-            // appleNetObj.Despawn(true);
-        }
-       _appleManager.SpawnApple();
-
+        // ... 기존 서버 로직 ...
     }
+    */
 
+     // HandleFatalCollision 등 다른 충돌 처리 메서드도 필요시 Owner 감지 -> ServerRpc 요청 방식으로 수정
+     /*
     public void HandleFatalCollision(GameObject collidedObject)
     {
-        if (!IsServer) return; // 서버에서만 실행
-
-        Debug.LogWarning($"[{GetType().Name}] 치명적 충돌 감지 (서버): 충돌 대상 = {collidedObject.name}");
-
-        // TODO: 게임 규칙에 따른 추가 처리 (예: 상대방 점수 증가 등)
-        // if (collidedObject.TryGetComponent<PlayerSnakeController>(out var otherSnake)) { ... }
-
-        // 스네이크 죽음 처리
-        // Die();
+       // if (!IsServer) return; // 제거 또는 IsOwner로 변경 고려
+       // Debug.LogWarning($"[{GetType().Name}] 치명적 충돌 감지...");
+       // _playerSnakeController.NotifyFatalCollisionServerRpc(collidedObject); // 예시 RPC 호출
     }
+    */
 
+    // OnTriggerEnter는 물리 이벤트이므로 모든 클라이언트/서버에서 호출될 수 있음.
+    // FixedUpdate의 OverlapSphere로 감지하므로 이 메서드는 불필요하거나,
+    // 다른 용도로 사용한다면 IsOwner 또는 IsServer 체크 필요.
+    /*
     private void OnTriggerEnter(Collider other)
     {
-        if (!IsServer) return;
-
-        // 사과와 충돌
-        if (other.CompareTag("Apple"))
-        {
-            Debug.Log($"[{GetType().Name}] OnTriggerEnter - 사과와 충돌 감지");
-
-            try
-            {
-                // AppleManager 확인
-                if (_appleManager == null)
-                {
-                    var lifetimeScope = FindObjectOfType<LifetimeScope>();
-                    if (lifetimeScope != null)
-                    {
-                        _appleManager = lifetimeScope.Container.Resolve<AppleManager>();
-                        Debug.Log($"[{GetType().Name}] AppleManager 재설정 완료");
-                    }
-                }
-
-                // Apple 컴포넌트 확인
-                Apple apple = other.GetComponent<Apple>();
-                if (apple != null)
-                {
-                    // 기존의 HandleAppleCollision 메서드 호출
-                    HandleAppleCollision(apple);
-                }
-                else
-                {
-                    Debug.LogError($"[{GetType().Name}] 충돌 객체에 Apple 컴포넌트가 없습니다!");
-                }
-            }
-            catch (System.Exception ex)
-            {
-                Debug.LogError($"[{GetType().Name}] 사과 충돌 처리 중 오류 발생: {ex.Message}\n{ex.StackTrace}");
-            }
-        }
-        // 다른 스네이크와 충돌 처리는 여기에 구현 (필요시)
+        // ...
     }
+    */
 } 

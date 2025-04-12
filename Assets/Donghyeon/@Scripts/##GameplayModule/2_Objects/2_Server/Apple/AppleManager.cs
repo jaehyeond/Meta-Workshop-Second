@@ -10,7 +10,7 @@ using VContainer.Unity;
 /// </summary>
 public class AppleManager : MonoBehaviour
 {
-    [SerializeField] private int _initialAppleCount = 10;  // 초기 생성할 사과 개수
+    [SerializeField] private int _initialAppleCount = 100;  // 초기 생성할 사과 개수
     [SerializeField] private float _spawnAreaRadius = 10f;  // 스폰 영역 반경
     [SerializeField] private float _spawnHeight = 0.0f;  // 스폰 높이
 
@@ -55,6 +55,5 @@ public class AppleManager : MonoBehaviour
    // Apple 파괴를 위한 ClientRpc 추가
 
    
-
-  
+ 
 } 

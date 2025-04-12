@@ -11,6 +11,23 @@ public static class Util
 	/// <summary>
 	/// 게임 오브젝트에 컴포넌트가 없으면 추가하고, 있으면 가져옵니다.
 	/// </summary>
+	/// 
+
+
+	public static Vector3 GetRandomPosition()
+	{
+		float _spawnAreaRadius = 100f;
+		float _spawnHeight = 0.0f;
+		float angle = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
+		float distance = UnityEngine.Random.Range(0f, _spawnAreaRadius);
+		
+        float x = Mathf.Cos(angle) * distance;
+        float z = Mathf.Sin(angle) * distance;
+        
+        return new Vector3(x, _spawnHeight, z);
+    }
+
+	
 	public static T GetOrAddComponent<T>(GameObject go) where T : UnityEngine.Component
 	{
 		if (go == null)
