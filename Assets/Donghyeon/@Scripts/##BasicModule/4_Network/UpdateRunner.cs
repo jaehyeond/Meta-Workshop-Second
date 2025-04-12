@@ -9,6 +9,9 @@ using Unity.Assets.Scripts.Resource;
     /// 일반적인 MonoBehaviour Update()보다 더 느리거나 정교하지 않은 주기로 업데이트가 필요한 객체들이,
     /// 혹은 Unity의 GameObject와 강하게 결합되지 않고도 Update 루프가 필요할 때 사용되는 클래스.
     /// (서비스 데이터 갱신 등 주기적 업데이트가 필요한 로직을 대신 처리해주는 역할)
+
+
+    
     /// </summary>
     /// 
 
