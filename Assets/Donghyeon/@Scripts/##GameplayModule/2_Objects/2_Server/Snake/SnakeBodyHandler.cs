@@ -1,186 +1,154 @@
 using UnityEngine;
 using System.Collections.Generic;
 using Unity.Assets.Scripts.Objects;
+using Unity.Netcode;
 
 public class SnakeBodyHandler : MonoBehaviour
 {
-    [Header("Body Settings")]
-    [SerializeField] private float _segmentSpacing = 0.17f;
-    [SerializeField] private float _segmentFollowSpeed = 8f;
-
-    public List<BaseObject> _bodySegments = new List<BaseObject>();
-    private List<SnakeBodySegment> _bodySegmentComponents = new List<SnakeBodySegment>();
-    private List<Vector3> _segmentVelocities = new List<Vector3>();
-    private Vector3 _firstSegmentVelocity = Vector3.zero;
-
     private Snake _snake;
-
-    public float GetSegmentSpacing() => _segmentSpacing;
-
-    public BaseObject GetLastSegment()
-    {
-        if (_bodySegments.Count > 0)
-        {
-            return _bodySegments[_bodySegments.Count - 1];
-        }
-        return null;
-    }
+    private List<BaseObject> _bodySegments = new List<BaseObject>();
+    private float _segmentSpacing = 1.0f;
+    private float _smoothSpeed = 10f;
+    private float _turnSpeed = 5f;
+    private Queue<Vector3> _positionHistory = new Queue<Vector3>();
+    private float _updateInterval = 0.05f;
+    private float _lastUpdateTime;
 
     public void Initialize(Snake snake)
     {
         _snake = snake;
-        _segmentVelocities = new List<Vector3>();
-        _firstSegmentVelocity = Vector3.zero;
+        _bodySegments.Clear();
+        _positionHistory.Clear();
+        _lastUpdateTime = Time.time;
     }
-//현재는 단순히 snakeBodyHandler.UpdateBodySegmentsPositions()를 호출하는 방식이지만, 실제 구현에서는 위치, 회전 등의 정보를 직렬화하여, 서버에서 클라이언트에 전송해야 합니다. 이 부분은 필요에 따라 추가 개발이 필요합니다
+
+    private void UpdatePositionHistory()
+    {
+        if (Time.time - _lastUpdateTime >= _updateInterval)
+        {
+            _positionHistory.Enqueue(_snake.Head.transform.position);
+            _lastUpdateTime = Time.time;
+
+            // 히스토리 크기 제한
+            while (_positionHistory.Count > 100)
+            {
+                _positionHistory.Dequeue();
+            }
+        }
+    }
+
+    public void AddBodySegment(BaseObject segment, SnakeBodySegment segmentComponent)
+    {
+        if (segment != null)
+        {
+            _bodySegments.Add(segment);
+            // 새 세그먼트의 초기 위치 설정
+            if (_bodySegments.Count > 1)
+            {
+                var lastSegment = _bodySegments[_bodySegments.Count - 2];
+                segment.transform.position = lastSegment.transform.position;
+            }
+            else
+            {
+                segment.transform.position = _snake.Head.transform.position - (_snake.Head.transform.forward * _segmentSpacing);
+            }
+        }
+    }
+
     public void UpdateBodySegmentsPositions()
     {
         if (_bodySegments.Count == 0 || _snake == null || _snake.Head == null) return;
 
-        try
-        {
-            while (_segmentVelocities.Count < _bodySegments.Count)
-            {
-                _segmentVelocities.Add(Vector3.zero);
-            }
-            
-            float followRatio = _segmentFollowSpeed * Time.smoothDeltaTime;
-            
-            Vector3 headPosition = _snake.Head.transform.position;
-            Quaternion headRotation = _snake.Head.transform.rotation;
-            Vector3 headForward = _snake.Head.transform.forward;
-            
-            if (_bodySegments.Count > 0)
-            {
-                BaseObject firstSegment = _bodySegments[0];
-                if (firstSegment == null) return;
-                
-                Vector3 targetPosition = headPosition - headForward * _segmentSpacing;
-                Vector3 currentVelocity = _firstSegmentVelocity;
-                
-                firstSegment.transform.position = Vector3.Lerp(
-                    firstSegment.transform.position,
-                    targetPosition,
-                    followRatio * 1.5f
-                );
-                
-                _firstSegmentVelocity = currentVelocity;
-                
-                firstSegment.transform.rotation = Quaternion.Slerp(
-                    firstSegment.transform.rotation,
-                    headRotation,
-                    followRatio * 1.5f
-                );
-            }
+        UpdatePositionHistory();
 
-            for (int i = 1; i < _bodySegments.Count; i++)
-            {
-                BaseObject segment = _bodySegments[i];
-                BaseObject prevSegment = _bodySegments[i - 1];
-                
-                if (segment == null || prevSegment == null) continue;
-                
-                Vector3 prevPosition = prevSegment.transform.position;
-                Quaternion prevRotation = prevSegment.transform.rotation;
-                Vector3 prevForward = prevSegment.transform.forward;
-                
-                Vector3 targetPosition = prevPosition - prevForward * _segmentSpacing;
-                
-                if (i < _segmentVelocities.Count)
-                {
-                    Vector3 currentVelocity = _segmentVelocities[i];
-                    
-                    segment.transform.position = Vector3.Lerp(
-                        segment.transform.position,
-                        targetPosition,
-                        followRatio * 1.2f
-                    );
-                    
-                    _segmentVelocities[i] = currentVelocity;
-                }
-                else
-                {
-                    segment.transform.position = Vector3.Lerp(
-                        segment.transform.position,
-                        targetPosition,
-                        followRatio
-                    );
-                }
-                
-                segment.transform.rotation = Quaternion.Slerp(
-                    segment.transform.rotation,
-                    prevRotation,
-                    followRatio * 1.2f
-                );
-            }
-        }
-        catch (System.Exception ex)
+        // 첫 번째 세그먼트는 헤드의 히스토리를 따라감
+        if (_bodySegments.Count > 0)
         {
-            Debug.LogError($"[{GetType().Name}] 세그먼트 위치 업데이트 오류: {ex.Message}");
+            int delay = 3; // 첫 번째 세그먼트의 지연
+            Vector3 targetPos = GetHistoryPosition(delay);
+            Vector3 direction = (targetPos - _bodySegments[0].transform.position).normalized;
+            
+            UpdateSegmentPosition(0, targetPos, direction);
+        }
+
+        // 나머지 세그먼트들은 앞 세그먼트를 따라감
+        for (int i = 1; i < _bodySegments.Count; i++)
+        {
+            if (_bodySegments[i] == null || _bodySegments[i - 1] == null) continue;
+
+            BaseObject currentSegment = _bodySegments[i];
+            BaseObject leadingSegment = _bodySegments[i - 1];
+            
+            Vector3 direction = (leadingSegment.transform.position - currentSegment.transform.position).normalized;
+            Vector3 targetPos = leadingSegment.transform.position - (direction * _segmentSpacing);
+            
+            UpdateSegmentPosition(i, targetPos, direction);
         }
     }
-    /// <summary>
-    /// 세그먼트 값 계산
-    /// 헤드 값과 세그먼트 위치에 따라 2의 제곱수 패턴으로 계산
-    /// </summary>
+
+    private Vector3 GetHistoryPosition(int delay)
+    {
+        if (_positionHistory.Count <= delay)
+        {
+            return _snake.Head.transform.position - (_snake.Head.transform.forward * _segmentSpacing);
+        }
+
+        return _positionHistory.ToArray()[_positionHistory.Count - delay - 1];
+    }
+
+    private void UpdateSegmentPosition(int index, Vector3 targetPosition, Vector3 direction)
+    {
+        var segment = _bodySegments[index];
+        if (segment == null) return;
+
+        float speed = _snake.IsServer ? _smoothSpeed : _smoothSpeed * 0.8f;
+        
+        // 위치 업데이트
+        segment.transform.position = Vector3.Lerp(
+            segment.transform.position,
+            targetPosition,
+            Time.deltaTime * speed
+        );
+
+        // 회전 업데이트
+        if (direction != Vector3.zero)
+        {
+            Quaternion targetRotation = Quaternion.LookRotation(direction);
+            segment.transform.rotation = Quaternion.Lerp(
+                segment.transform.rotation,
+                targetRotation,
+                Time.deltaTime * _turnSpeed
+            );
+        }
+    }
+
+    public BaseObject GetBodySegment(int index)
+    {
+        return index >= 0 && index < _bodySegments.Count ? _bodySegments[index] : null;
+    }
+
+    public int GetBodySegmentCount()
+    {
+        return _bodySegments.Count;
+    }
+
+    public float GetSegmentSpacing()
+    {
+        return _segmentSpacing;
+    }
+
+    public BaseObject GetLastSegment()
+    {
+        return _bodySegments.Count > 0 ? _bodySegments[_bodySegments.Count - 1] : null;
+    }
+
     public int CalculateSegmentValue()
     {
-        // 이제 Snake의 _networkHeadValue 사용
         int headValue = _snake._networkHeadValue.Value;
         float log2HeadValue = Mathf.Log(headValue, 2);
         int headPower = (int)Mathf.Round(log2HeadValue);
         
         int segmentPower = headPower - _bodySegments.Count - 1;
         return segmentPower > 0 ? (int)Mathf.Pow(2, segmentPower) : 2;
-    }
-
-
-    public void SetSegmentValue(int segmentIndex, int segmentValue)
-    {
-
-
-        if (_bodySegmentComponents.Count > segmentIndex && segmentIndex >= 0) // 인덱스 유효성 검사 추가
-        {
-            var segmentComponent = _bodySegmentComponents[segmentIndex];
-            if (segmentComponent != null)
-            {
-                segmentComponent.SetValue(segmentValue);
-            }
-      
-        }
-
-    }
-
-    public void AddBodySegment(BaseObject segment, SnakeBodySegment segmentComponent)
-    {
-        if (segment == null) return;
-
-        _bodySegments.Add(segment);
-        
-        if (segmentComponent != null)
-        {
-            _bodySegmentComponents.Add(segmentComponent);
-            _segmentVelocities.Add(Vector3.zero);
-        }
-    }
-
-    public void CleanupBodySegments()
-    {
-        foreach (var segment in _bodySegments)
-        {
-            if (segment != null)
-            {
-                Destroy(segment);
-            }
-        }
-        
-        _bodySegments.Clear();
-        _bodySegmentComponents.Clear();
-        _segmentVelocities.Clear();
-    }
-
-    public int GetBodySegmentCount()
-    {
-        return _bodySegments.Count;
     }
 } 

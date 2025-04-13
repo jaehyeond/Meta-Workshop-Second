@@ -46,15 +46,18 @@ public class SnakeHead : BaseObject
 
     private void Update()
     {
-        transform.rotation = Quaternion.Slerp(transform.rotation, _targetRotation, Time.deltaTime * _rotationSpeed);
+    }
 
+    private void FixedUpdate()
+    {
+        transform.rotation = Quaternion.Slerp(transform.rotation, _targetRotation, Time.fixedDeltaTime * _rotationSpeed);
         MoveHead();
     }
 
-    // 이동 메소드 (Update에서 호출되므로 deltaTime 사용)
+    // 이동 메소드 (FixedUpdate에서 호출되므로 fixedDeltaTime 사용)
     public void MoveHead()
     {
-        var timeStep = Time.deltaTime * _speed;
+        var timeStep = Time.fixedDeltaTime * _speed;
         transform.Translate(transform.forward * timeStep, Space.World);
     }
     

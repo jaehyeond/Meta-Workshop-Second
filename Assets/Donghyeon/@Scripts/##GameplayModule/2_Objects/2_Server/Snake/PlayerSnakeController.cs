@@ -187,33 +187,50 @@ public class PlayerSnakeController : NetworkBehaviour
     #endregion
     private void FixedUpdate()
     {
-        // 서버만 모든 스네이크의 권한 있는 위치 계산 및 업데이트
+        if (_snake == null || _snake.Head == null) return;
+
+        // 서버 로직
         if (IsServer)
         {
-            // _snake와 _snakeBodyHandler가 null인지 확인
-            if (_snake == null || _snake.Head == null || _snakeBodyHandler == null)
+            // 서버에서 위치 업데이트
+            if (_snakeBodyHandler != null)
             {
-                return;
+                _snakeBodyHandler.UpdateBodySegmentsPositions();
+                // 모든 클라이언트에게 현재 상태 전송
+                SyncSnakeStateClientRpc(
+                    _snake.Head.transform.position,
+                    _snake.Head.transform.rotation
+                );
             }
- 
-            _snakeBodyHandler.UpdateBodySegmentsPositions();
-            SyncPositionsClientRpc(_snake.Head.transform.position, _snake.Head.transform.rotation);
+        }
+
+        // 클라이언트의 입력 처리 로직
+        if (IsOwner)
+        {
+            Vector2 moveDirection = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
+            if (moveDirection.sqrMagnitude > 0.01f)
+            {
+                HandleMoveDirChanged(moveDirection);
+            }
         }
     }
 
     [ClientRpc]
-    private void SyncPositionsClientRpc(Vector3 headPosition, Quaternion headRotation)
+    private void SyncSnakeStateClientRpc(Vector3 headPosition, Quaternion headRotation)
     {
-        if (IsServer) return; // 서버인 경우 이미 계산됨
-        
+        if (IsServer) return;
+
         if (_snake != null && _snake.Head != null)
         {
-            // 클라이언트에서 Head 위치 업데이트
+            // 클라이언트의 헤드 위치 업데이트
             _snake.Head.transform.position = headPosition;
             _snake.Head.transform.rotation = headRotation;
-            
-            // 클라이언트에서 Body 세그먼트 위치 업데이트
-            _snakeBodyHandler.UpdateBodySegmentsPositions();
+
+            // 바디 세그먼트 업데이트
+            if (_snakeBodyHandler != null)
+            {
+                _snakeBodyHandler.UpdateBodySegmentsPositions();
+            }
         }
     }
 
@@ -376,9 +393,10 @@ public class PlayerSnakeController : NetworkBehaviour
             int startIndex = _bodySegmentComponents.Count;
             for (int i = startIndex; i < segmentCount; i++)
             {
-                if (i < _snakeBodyHandler._bodySegments.Count && _snakeBodyHandler._bodySegments[i] != null)
+                BaseObject bodySegment = _snakeBodyHandler.GetBodySegment(i);
+                if (bodySegment != null)
                 {
-                    var segment = _snakeBodyHandler._bodySegments[i].GetComponent<SnakeBodySegment>();
+                    var segment = bodySegment.GetComponent<SnakeBodySegment>();
                     _bodySegmentComponents.Add(segment);
                 }
                 else
