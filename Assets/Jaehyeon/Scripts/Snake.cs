@@ -34,6 +34,13 @@ public class Snake : BaseObject
             SetInfo();
         }
 
+        // 머리 오브젝트에 ClientNetworkTransform 컴포넌트 추가 (없는 경우)
+        // if (Head != null && Head.GetComponent<Unity.Netcode.Components.ClientNetworkTransform>() == null)
+        // {
+        //     Head.gameObject.AddComponent<Unity.Netcode.Components.ClientNetworkTransform>();
+        //     Debug.Log($"[{GetType().Name}] Head 오브젝트에 ClientNetworkTransform 컴포넌트 추가됨");
+        // }
+
         // PlayerSnakeController 참조 확인 및 설정
         if (_playerSnakeController == null)
         {
@@ -169,6 +176,19 @@ public class Snake : BaseObject
         }
     }
 
+    [ClientRpc]
+    private void SyncHeadPositionClientRpc(Vector3 position, Quaternion rotation)
+    {
+        // 호스트나 소유자는 이미 직접 처리하므로 제외
+        if (IsOwner || IsServer) return;
+        
+        // 다른 클라이언트들에서만 실행 (소유자가 아닌 경우)
+        if (Head != null)
+        {
+            Head.transform.position = position;
+            Head.transform.rotation = rotation;
+        }
+    }
 
     // private List<SnakeBodySegment> _bodySegmentComponents = new List<SnakeBodySegment>();
 

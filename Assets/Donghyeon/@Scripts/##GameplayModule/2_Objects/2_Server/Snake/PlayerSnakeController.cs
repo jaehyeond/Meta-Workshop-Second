@@ -187,38 +187,21 @@ public class PlayerSnakeController : NetworkBehaviour
     #endregion
     private void FixedUpdate()
     {
-        // 서버만 모든 스네이크의 권한 있는 위치 계산 및 업데이트
-        if (IsServer)
+        // 스네이크와 핸들러가 유효한지 확인
+        if (_snake == null || _snake.Head == null || _snakeBodyHandler == null)
         {
-            // _snake와 _snakeBodyHandler가 null인지 확인
-            if (_snake == null || _snake.Head == null || _snakeBodyHandler == null)
-            {
-                return;
-            }
- 
-            _snakeBodyHandler.UpdateBodySegmentsPositions();
-            SyncPositionsClientRpc(_snake.Head.transform.position, _snake.Head.transform.rotation);
+            return;
         }
-    }
 
-    [ClientRpc]
-    private void SyncPositionsClientRpc(Vector3 headPosition, Quaternion headRotation)
-    {
-        if (IsServer) return; // 서버인 경우 이미 계산됨
-        
-        if (_snake != null && _snake.Head != null)
+        // 호스트(서버+클라이언트)와 일반 클라이언트 구분해서 처리
+        if (IsOwner)
         {
-            // 클라이언트에서 Head 위치 업데이트
-            _snake.Head.transform.position = headPosition;
-            _snake.Head.transform.rotation = headRotation;
-            
-            // 클라이언트에서 Body 세그먼트 위치 업데이트
+            // 소유자일 경우 바디 세그먼트 위치 직접 업데이트 (호스트든 클라이언트든)
             _snakeBodyHandler.UpdateBodySegmentsPositions();
         }
+
     }
 
-
- 
     [ServerRpc]
     public void NotifyAppleEatenServerRpc(int appleValue, ulong appleNetworkId)
     {
@@ -278,33 +261,31 @@ public class PlayerSnakeController : NetworkBehaviour
     {
         if (IsOwner)
         {
-            UpdateMoveDirectionServerRpc(moveDirection);
+            // 클라이언트가 소유한 오브젝트의 움직임을 직접 제어
+            // ClientNetworkTransform이 이 변경을 서버로 동기화
+            if (moveDirection.sqrMagnitude > 0.01f)
+            {
+                Vector3 currentPosition = _snake.Head.transform.position;
+                Vector3 targetDirection = new Vector3(moveDirection.x, 0, moveDirection.y).normalized;
+                Vector3 targetPosition = currentPosition + targetDirection;
+                _snake.Head.LookAt(targetPosition);
+            }
         }
     }
-
 
     [ServerRpc]
     private void UpdateMoveDirectionServerRpc(Vector2 moveDirection)
     {
-        if (moveDirection.sqrMagnitude > 0.01f)
-        {
-            Vector3 currentPosition = _snake.Head.transform.position;
-            Vector3 targetDirection = new Vector3(moveDirection.x, 0, moveDirection.y).normalized;
-            Vector3 targetPosition = currentPosition + targetDirection;
-            _snake.Head.LookAt(targetPosition);
-            Vector3 newForwardDirection = _snake.Head.transform.forward;
-            UpdateDirectionClientRpc(newForwardDirection);
-        }
+        // ClientNetworkTransform을 사용할 때는 이 메서드가 필요하지 않습니다.
+        // 하지만 다른 동작이 필요한 경우를 위해 유지
     }
-
 
     [ClientRpc]
     private void UpdateDirectionClientRpc(Vector3 direction)
     {
-        if (IsServer) return;
-        _snake.SetHeadTargetDirection(direction);
+        // ClientNetworkTransform을 사용할 때는 이 메서드가 필요하지 않습니다.
+        // 하지만 다른 동작이 필요한 경우를 위해 유지
     }
-
 
     /// <summary>
     /// 새 몸체 세그먼트 추가 (서버 전용 로직)
@@ -334,30 +315,111 @@ public class PlayerSnakeController : NetworkBehaviour
 
         try
         {
-            // 서버에서 세그먼트 생성
-            BaseObject segment = _objectManager.Spawn<BaseObject>(spawnPosition, spawnRotation, prefabName: "Body Detail");
-            SnakeBodySegment segmentComponent = segment.GetComponent<SnakeBodySegment>();
-
-            if (segmentComponent != null)
+               // 서버에서 스폰 및 소유권 이전 시도
+     
+            // 1. 프리팹 로드 (서버에서)
+            GameObject segmentPrefab = _resourceManager.Load<GameObject>("Body Detail");
+            if (segmentPrefab == null)
             {
-                int segmentValue = _snakeBodyHandler.CalculateSegmentValue();
-                segmentComponent.SetValue(segmentValue);
+                Debug.LogError($"[{GetType().Name} Server - ID:{NetworkObjectId}] \'Body Detail\' 프리팹 로드 실패!");
+                return;
             }
-            
-            segment.transform.SetParent(_snake.transform, true);
-            
-            _snakeBodyHandler.AddBodySegment(segment, segmentComponent);
-            _networkBodyCount.Value++; // 네트워크 변수 업데이트
-                
-                
-            Debug.Log($"[{GetType().Name} Server - ID:{NetworkObjectId}] 세그먼트 추가됨: 위치={spawnPosition}, 회전={spawnRotation}");
+
+            // 2. 프리팹 인스턴스화 (서버에서)
+            GameObject segmentInstance = Instantiate(segmentPrefab, spawnPosition, spawnRotation);
+             if (segmentInstance == null)
+            {
+                Debug.LogError($"[{GetType().Name} Server - ID:{NetworkObjectId}] 세그먼트 인스턴스화 실패!");
+                return;
+            }
+
+            // 3. NetworkObject 컴포넌트 가져오기
+            NetworkObject networkObject = segmentInstance.GetComponent<NetworkObject>();
+             if (networkObject == null)
+            {
+                Debug.LogError($"[{GetType().Name} Server - ID:{NetworkObjectId}] 생성된 세그먼트에 NetworkObject 컴포넌트가 없습니다!");
+                Destroy(segmentInstance);
+                return;
+            }
+
+            // 4. 서버에서 스폰
+            networkObject.Spawn(true); // destroyWithScene = true
+            Debug.Log($"[{GetType().Name} Server - ID:{NetworkObjectId}] 세그먼트 스폰 완료: NetworkObjectId={networkObject.NetworkObjectId}");
+
+            // 5. 소유권 클라이언트에게 이전
+            networkObject.ChangeOwnership(OwnerClientId);
+             Debug.Log($"[{GetType().Name} Server - ID:{NetworkObjectId}] 세그먼트 소유권 이전 -> Client {OwnerClientId}");
+
+            // 6. 모든 클라이언트에게 스폰 알림 (PlayerController ID와 Segment ID 전달)
+            NotifySegmentSpawnedClientRpc(this.NetworkObjectId, networkObject.NetworkObjectId);
+
+       
         }
         catch (System.Exception ex)
         {
             Debug.LogError($"[{GetType().Name} Server - ID:{NetworkObjectId}] 세그먼트 생성 중 오류: {ex.Message}\n{ex.StackTrace}");
         }
     }
-    
+
+
+    [ClientRpc]
+    private void NotifySegmentSpawnedClientRpc(ulong ownerPlayerControllerId, ulong spawnedSegmentNetworkId)
+    {
+        Debug.Log($"[{GetType().Name} Client - ID:{NetworkObjectId}] NotifySegmentSpawnedClientRpc 수신: PlayerControllerID={ownerPlayerControllerId}, SegmentID={spawnedSegmentNetworkId}");
+
+        // 1. PlayerController 찾기
+        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(ownerPlayerControllerId, out NetworkObject playerControllerNetworkObject) || playerControllerNetworkObject == null)
+        {
+            Debug.LogError($"[{GetType().Name} Client - ID:{NetworkObjectId}] PlayerControllerID={ownerPlayerControllerId}에 해당하는 NetworkObject를 찾지 못했습니다.");
+            return;
+        }
+        PlayerSnakeController targetController = playerControllerNetworkObject.GetComponent<PlayerSnakeController>();
+        if (targetController == null || targetController._snakeBodyHandler == null)
+        {
+            Debug.LogError($"[{GetType().Name} Client - ID:{NetworkObjectId}] PlayerControllerID={ownerPlayerControllerId}에서 PlayerSnakeController 컴포넌트 또는 SnakeBodyHandler를 찾지 못했습니다.");
+            return;
+        }
+
+
+        // 2. 스폰된 세그먼트 찾기
+        if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(spawnedSegmentNetworkId, out NetworkObject segmentNetworkObject))
+        {
+            if (segmentNetworkObject != null)
+            {
+                 GameObject segmentInstance = segmentNetworkObject.gameObject;
+                 BaseObject segment = segmentInstance.GetComponent<BaseObject>();
+                 SnakeBodySegment segmentComponent = segmentInstance.GetComponent<SnakeBodySegment>();
+
+                 if (segment != null && segmentComponent != null)
+                 {
+                     // 3. 타겟 컨트롤러의 핸들러에 세그먼트 추가
+                     // 서버에서만 부모 설정을 수행하도록 수정
+                     if (IsServer)
+                     {
+                         segment.transform.SetParent(targetController._snake.transform, true); // 부모 설정 (서버만 실행)
+                         Debug.Log($"[{GetType().Name} Server - ID:{NetworkObjectId}] 서버에서 세그먼트의 부모 설정 완료");
+                     }
+                     
+                     // 핸들러에 세그먼트 추가 (모든 클라이언트 실행)
+                     targetController._snakeBodyHandler.AddBodySegment(segment, segmentComponent);
+                     Debug.Log($"[{GetType().Name} Client - ID:{NetworkObjectId}] PlayerControllerID={ownerPlayerControllerId}의 핸들러에 SegmentID={spawnedSegmentNetworkId} 추가 완료.");
+                 }
+                 else
+                 {
+                     Debug.LogError($"[{GetType().Name} Client - ID:{NetworkObjectId}] SegmentID={spawnedSegmentNetworkId} 객체에서 필요한 컴포넌트(BaseObject/SnakeBodySegment)를 찾지 못했습니다.");
+                 }
+            }
+            else
+            {
+                 Debug.LogError($"[{GetType().Name} Client - ID:{NetworkObjectId}] SegmentID={spawnedSegmentNetworkId}에 해당하는 NetworkObject를 찾았으나 null입니다.");
+            }
+        }
+        else
+        {
+             Debug.LogError($"[{GetType().Name} Client - ID:{NetworkObjectId}] SegmentID={spawnedSegmentNetworkId}에 해당하는 NetworkObject를 찾지 못했습니다. 스폰 동기화 지연일 수 있습니다.");
+        }
+    }
+
     /// <summary>
     /// 몸체 세그먼트 값 업데이트 (서버 전용 로직)
     /// 헤드 값 변경 시 모든 세그먼트의 값 재계산
