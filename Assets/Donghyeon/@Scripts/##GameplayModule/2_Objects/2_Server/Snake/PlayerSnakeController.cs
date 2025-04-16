@@ -222,13 +222,30 @@ public class PlayerSnakeController : NetworkBehaviour
 
         if (_snake != null && _snake.Head != null)
         {
-            // 클라이언트의 헤드 위치 업데이트
+            // 클라이언트의 헤드 위치와 회전 업데이트
             _snake.Head.transform.position = headPosition;
             _snake.Head.transform.rotation = headRotation;
 
-            // 바디 세그먼트 업데이트
-            if (_snakeBodyHandler != null)
+            // 시각적 보정 - 첫 번째 세그먼트만 보정
+            if (_snakeBodyHandler != null && _snakeBodyHandler.GetBodySegmentCount() > 0)
             {
+                var firstSegment = _snakeBodyHandler.GetBodySegment(0);
+                if (firstSegment != null)
+                {
+                    // Head의 forward 방향을 기준으로 첫 번째 세그먼트 위치 계산
+                    // 이렇게 하면 Head 회전에 맞춰 정확한 방향으로 세그먼트가 배치됨
+                    Vector3 headForward = _snake.Head.transform.forward;
+                    float adjustedSpacing = 0.25f; // 더 좁은 간격으로 조정
+                    
+                    // 보정된 위치 계산
+                    Vector3 newPosition = headPosition - (headForward * _snakeBodyHandler.GetSegmentSpacing() * adjustedSpacing);
+                    firstSegment.transform.position = newPosition;
+                    
+                    // 세그먼트 회전도 Head 회전에 맞춤
+                    firstSegment.transform.rotation = headRotation;
+                }
+                
+                // 나머지 바디 세그먼트 업데이트
                 _snakeBodyHandler.UpdateBodySegmentsPositions();
             }
         }
