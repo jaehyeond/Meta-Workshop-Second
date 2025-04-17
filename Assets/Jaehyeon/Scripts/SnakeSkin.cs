@@ -3,7 +3,7 @@
 
     public class SnakeSkin : MonoBehaviour
     {
-        [SerializeField] private MeshRenderer[] _elements;
+        [SerializeField] public MeshRenderer[] _elements;
         
         public void ChangeTo(Material targetMaterial)
         {

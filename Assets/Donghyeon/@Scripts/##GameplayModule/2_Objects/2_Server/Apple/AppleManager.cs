@@ -14,32 +14,29 @@ public class AppleManager : MonoBehaviour
     [SerializeField] private float _spawnAreaRadius = 10f;  // 스폰 영역 반경
     [SerializeField] private float _spawnHeight = 0.0f;  // 스폰 높이
 
+    // 스폰할 프리팹 이름들을 인스펙터에서 설정할 수 있는 배열 추가
+    [SerializeField] private string[] _spawnablePrefabNames = { "Apple", "Beer", "Beef", "Candy" };
 
     [Inject] private ObjectManager _objectManager;
 
     public void SpawnInitialApples()
     {
-        Debug.Log($"[{GetType().Name}] Spawning initial {_initialAppleCount} apples...");
+        Debug.Log($"[{GetType().Name}] Spawning initial {_initialAppleCount} objects...");
         for (int i = 0; i < _initialAppleCount; i++)
         {
-            SpawnApple(); // 개별 사과 스폰 및 활성화 로직 재사용
+            // 프리팹 목록에서 랜덤하게 하나를 선택하여 스폰
+            string randomPrefab = _spawnablePrefabNames[Random.Range(0, _spawnablePrefabNames.Length)];
+            SpawnObject(randomPrefab);
         }
     }
 
-
-    /// <summary>
-    /// 단일 사과를 스폰하는 메서드
-    /// </summary>
-    public void SpawnApple()
+    public void SpawnObject(string prefabName)
     {
-        Debug.Log($"[{GetType().Name}] Spawning apple...");
+        Debug.Log($"[{GetType().Name}] Spawning {prefabName}...");
         Vector3 spawnPosition = GetRandomPosition();
 
-        // ObjectManager에서 활성화를 처리하므로 여기서는 스폰만 호출합니다.
-        _objectManager.Spawn<BaseObject>(spawnPosition, prefabName: "Apple");
+        _objectManager.Spawn<BaseObject>(spawnPosition, prefabName: prefabName);
     }
-
-
 
     private Vector3 GetRandomPosition()
     {

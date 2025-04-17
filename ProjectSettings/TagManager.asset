@@ -5,6 +5,9 @@ TagManager:
   serializedVersion: 3
   tags:
   - Apple
+  - Candy
+  - Beef
+  - Beer
   layers:
   - Default
   - TransparentFX

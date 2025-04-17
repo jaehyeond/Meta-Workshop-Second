@@ -128,6 +128,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _AddPrecomputedVelocity: 0
     - _AlphaClip: 0
     - _AlphaToMask: 0
     - _BASE_COLOR_WEIGHT: 1
@@ -172,7 +173,7 @@ Material:
     m_Colors:
     - _BASE_COLOR: {r: 0.36363637, g: 0.17874534, b: 0.09139523, a: 1}
     - _BaseColor: {r: 0.63714504, g: 0.45985335, b: 0.33431748, a: 1}
-    - _Color: {r: 0.63714504, g: 0.45985335, b: 0.33431748, a: 1}
+    - _Color: {r: 0.63714504, g: 0.4598533, b: 0.33431745, a: 1}
     - _EMISSION_COLOR: {r: 0, g: 0, b: 0, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _REFLECTIONS_COLOR: {r: 0.9, g: 0.9, b: 0.9, a: 1}

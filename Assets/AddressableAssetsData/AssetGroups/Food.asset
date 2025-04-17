@@ -1,0 +1,41 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: Food
+  m_EditorClassIdentifier: 
+  m_GroupName: Food
+  m_GUID: f888536c601c15143922010cce711204
+  m_SerializeEntries:
+  - m_GUID: 507e8856eea484142a17a5f2bfd561bd
+    m_Address: Candy
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - PreLoad
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 7ef643228c1c6b94ebe827b7ae7740e0
+    m_Address: Beef
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - PreLoad
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f33a199af3c938145b9e302f0d65561b
+    m_Address: Beer
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - PreLoad
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
+  m_Settings: {fileID: 11400000, guid: 6e1f597277e8e9241937a22b340fdf84, type: 2}
+  m_SchemaSet:
+    m_Schemas:
+    - {fileID: 11400000, guid: 0a4a5fdcc72f0234f9110fa864ea7048, type: 2}
+    - {fileID: 11400000, guid: 39220dd25d643a2498f13dab7a25e5c0, type: 2}

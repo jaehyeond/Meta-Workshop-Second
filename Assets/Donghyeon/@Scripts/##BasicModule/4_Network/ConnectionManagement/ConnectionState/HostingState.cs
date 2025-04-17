@@ -183,8 +183,8 @@ class HostingState : OnlineState
         try
         {
             // 연결 승인
-            float randomX = UnityEngine.Random.Range(-10f, 10f);
-            float randomZ = UnityEngine.Random.Range(-10f, 10f);
+            float randomX = UnityEngine.Random.Range(-3f, 3f);
+            float randomZ = UnityEngine.Random.Range(-3f, 3f);
             Vector3 spawnPosition = new Vector3(randomX, 0f, randomZ); // Y는 0으로 가정
 
             // --- 연결 승인 및 스폰 설정 ---

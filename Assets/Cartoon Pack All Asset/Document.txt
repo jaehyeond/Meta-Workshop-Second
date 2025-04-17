@@ -1,0 +1,16 @@
+In this asset, you can find textured and various foods, snacks, drinks, vegetables, and fruits.
+
+20 Foods
+20 Drinks
+20 Fruits
+20 Snacks
+20 Vegetables
+
+All Textured.
+All models are collided.
+
+Lowest vertices value: 64
+Highest vertices value: 8512
+The dimensions of the texture images are 2048px.
+UV Mapping: Yes
+Type of materials is Legacy Shaders/Self-Illimun/Diffuse.
