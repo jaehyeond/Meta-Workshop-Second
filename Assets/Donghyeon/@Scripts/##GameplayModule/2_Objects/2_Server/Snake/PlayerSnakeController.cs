@@ -34,6 +34,7 @@ public class PlayerSnakeController : NetworkBehaviour
     [Header("Skin Settings")]
     [Tooltip("플레이어 스킨으로 사용할 Material 리스트. Inspector에서 할당해야 합니다.")]
     public List<Material> playerSkins = new List<Material>();
+    public Material targetMaterial;
     #endregion
 
     #region Runtime Variables
@@ -76,12 +77,10 @@ public class PlayerSnakeController : NetworkBehaviour
         // Log network state
         Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] OnNetworkSpawn - OwnerClientId: {OwnerClientId}, LocalClientId: {NetworkManager.Singleton.LocalClientId}, IsServer: {IsServer}, IsClient: {IsClient}, IsOwner: {IsOwner}");
         _snake = GetComponentInChildren<Snake>(true); 
-        // 색상 변경 감지 콜백 등록 (모든 클라이언트에서) -> 스킨 인덱스 변경 감지로 변경
         NetworkSkinIndex.OnValueChanged += HandleSkinIndexChanged;
         // 초기 색상 적용 (스폰 시점의 값으로) -> 초기 스킨 적용으로 변경
         ApplyPlayerSkin(NetworkSkinIndex.Value);
 
-        // 서버에서만 NetworkVariable 초기화 및 권한 있는 SnakeBodyHandler 초기화
         if (IsServer)
         {
             InitializeServerState();
@@ -227,10 +226,8 @@ public class PlayerSnakeController : NetworkBehaviour
             return;
         }
 
-        // 호스트(서버+클라이언트)와 일반 클라이언트 구분해서 처리
         if (IsOwner)
         {
-            // 소유자일 경우 바디 세그먼트 위치 직접 업데이트 (호스트든 클라이언트든)
             _snakeBodyHandler.UpdateBodySegmentsPositions();
         }
 
@@ -246,10 +243,8 @@ public class PlayerSnakeController : NetworkBehaviour
         _snake._networkHeadValue.Value += appleValue; // Snake의 _networkHeadValue 사용
         try 
         {
-            // 호스트가 먹은 사과인 경우
             if (IsHost || IsServer)
             {
-                // SpawnedObjects에서 사과 찾기
                 if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(appleNetworkId, out NetworkObject appleNetObj))
                 {
                     if (appleNetObj.TryGetComponent<Apple>(out var apple))
@@ -265,7 +260,6 @@ public class PlayerSnakeController : NetworkBehaviour
             Debug.LogError($"[{GetType().Name} Server ID:{NetworkObjectId}] 사과 제거 중 오류: {ex.Message}");
         }
         
-        // 새 사과 생성 (어떤 경우든 항상 새 사과 생성)
         try
         {
             Vector3 randomPosition = Util.GetRandomPosition();
@@ -283,7 +277,6 @@ public class PlayerSnakeController : NetworkBehaviour
     [ServerRpc]
     public void NotifyHeadValueChangedServerRpc(int previousValue, int newValue)
     {
-        // 이 RPC는 서버 내부 로직이나 다른 이벤트에 의해 호출될 수 있음
          Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] NotifyHeadValueChangedServerRpc 수신: {previousValue} -> {newValue}");
         AddBodySegmentOnServer();
         UpdateBodyValuesOnServer(newValue);
@@ -305,20 +298,6 @@ public class PlayerSnakeController : NetworkBehaviour
                 _snake.Head.LookAt(targetPosition);
             }
         }
-    }
-
-    [ServerRpc]
-    private void UpdateMoveDirectionServerRpc(Vector2 moveDirection)
-    {
-        // ClientNetworkTransform을 사용할 때는 이 메서드가 필요하지 않습니다.
-        // 하지만 다른 동작이 필요한 경우를 위해 유지
-    }
-
-    [ClientRpc]
-    private void UpdateDirectionClientRpc(Vector3 direction)
-    {
-        // ClientNetworkTransform을 사용할 때는 이 메서드가 필요하지 않습니다.
-        // 하지만 다른 동작이 필요한 경우를 위해 유지
     }
 
     /// <summary>
@@ -367,6 +346,11 @@ public class PlayerSnakeController : NetworkBehaviour
                 return;
             }
 
+            // 스킨 적용 로직 추가
+            // SnakeSkin segmentSkin = segmentInstance.GetComponent<SnakeSkin>();
+            // segmentSkin.ChangeTo(targetMaterial);
+
+
             // 3. NetworkObject 컴포넌트 가져오기
             NetworkObject networkObject = segmentInstance.GetComponent<NetworkObject>();
              if (networkObject == null)
@@ -385,7 +369,7 @@ public class PlayerSnakeController : NetworkBehaviour
              Debug.Log($"[{GetType().Name} Server - ID:{NetworkObjectId}] 세그먼트 소유권 이전 -> Client {OwnerClientId}");
 
             // 6. 모든 클라이언트에게 스폰 알림 (PlayerController ID, Segment ID, 그리고 스킨 인덱스 전달)
-            NotifySegmentSpawnedClientRpc(this.NetworkObjectId, networkObject.NetworkObjectId, NetworkSkinIndex.Value);
+            NotifySegmentSpawnedClientRpc(this.NetworkObjectId, networkObject.NetworkObjectId);
 
        
         }
@@ -397,9 +381,9 @@ public class PlayerSnakeController : NetworkBehaviour
 
 
     [ClientRpc]
-    private void NotifySegmentSpawnedClientRpc(ulong ownerPlayerControllerId, ulong spawnedSegmentNetworkId, int ownerSkinIndex)
+    private void NotifySegmentSpawnedClientRpc(ulong ownerPlayerControllerId, ulong spawnedSegmentNetworkId)
     {
-        Debug.Log($"[{GetType().Name} Client - ID:{NetworkObjectId}] NotifySegmentSpawnedClientRpc 수신: PlayerControllerID={ownerPlayerControllerId}, SegmentID={spawnedSegmentNetworkId}, SkinIndex={ownerSkinIndex}");
+        Debug.Log($"[{GetType().Name} Client - ID:{NetworkObjectId}] NotifySegmentSpawnedClientRpc 수신: PlayerControllerID={ownerPlayerControllerId}, SegmentID={spawnedSegmentNetworkId}");
 
         // 1. PlayerController 찾기
         if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(ownerPlayerControllerId, out NetworkObject playerControllerNetworkObject) || playerControllerNetworkObject == null)
@@ -414,21 +398,6 @@ public class PlayerSnakeController : NetworkBehaviour
             return;
         }
 
-        // 적용할 Material 찾기 (PlayerController의 리스트 사용)
-        Material targetMaterial = null;
-        if (targetController.playerSkins != null && targetController.playerSkins.Count > 0)
-        {
-            if (ownerSkinIndex >= 0 && ownerSkinIndex < targetController.playerSkins.Count)
-            {
-                targetMaterial = targetController.playerSkins[ownerSkinIndex];
-            }
-            else
-            {
-                Debug.LogError($"[{GetType().Name} Client - ID:{NetworkObjectId}] 수신된 Skin Index ({ownerSkinIndex})가 PlayerController의 Skins 리스트 범위를 벗어났습니다. 0번 인덱스 사용 시도.");
-                if (targetController.playerSkins.Count > 0) targetMaterial = targetController.playerSkins[0];
-            }
-        }
-
 
         // 2. 스폰된 세그먼트 찾기
         if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(spawnedSegmentNetworkId, out NetworkObject segmentNetworkObject))
@@ -438,40 +407,18 @@ public class PlayerSnakeController : NetworkBehaviour
                  GameObject segmentInstance = segmentNetworkObject.gameObject;
                  BaseObject segment = segmentInstance.GetComponent<BaseObject>();
                  SnakeBodySegment segmentComponent = segmentInstance.GetComponent<SnakeBodySegment>();
+ 
 
                  if (segment != null && segmentComponent != null)
                  {
-                     // 3. 세그먼트에 스킨 적용 (SnakeSkin 컴포넌트 사용)
-                     if (targetMaterial != null)
-                     {
-                         SnakeSkin segmentSkin = segmentInstance.GetComponent<SnakeSkin>();
-                         if (segmentSkin != null && segmentSkin._elements != null)
-                         {
-                             int appliedCount = 0;
-                             foreach (Renderer renderer in segmentSkin._elements)
-                             {
-                                 if (renderer != null)
-                                 {
-                                     renderer.material = targetMaterial;
-                                     appliedCount++;
-                                 }
-                             }
-                             Debug.Log($"[{GetType().Name} Client - ID:{NetworkObjectId}] SegmentID={spawnedSegmentNetworkId}에 스킨 Material '{targetMaterial.name}'을 {appliedCount}개의 Renderer에 적용.");
-                         }
-                         else
-                         {
-                              Debug.LogWarning($"[{GetType().Name} Client - ID:{NetworkObjectId}] SegmentID={spawnedSegmentNetworkId}에서 SnakeSkin 컴포넌트 또는 _elements 리스트를 찾을 수 없습니다.");
-                         }
-                     }
-
-                     // 4. 타겟 컨트롤러의 핸들러에 세그먼트 추가
+                     // 3. 타겟 컨트롤러의 핸들러에 세그먼트 추가
                      // 서버에서만 부모 설정을 수행하도록 수정
                      if (IsServer)
                      {
                          segment.transform.SetParent(targetController._snake.transform, true); // 부모 설정 (서버만 실행)
                          Debug.Log($"[{GetType().Name} Server - ID:{NetworkObjectId}] 서버에서 세그먼트의 부모 설정 완료");
                      }
-                     
+             
                      // 핸들러에 세그먼트 추가 (모든 클라이언트 실행)
                      targetController._snakeBodyHandler.AddBodySegment(segment, segmentComponent);
                      Debug.Log($"[{GetType().Name} Client - ID:{NetworkObjectId}] PlayerControllerID={ownerPlayerControllerId}의 핸들러에 SegmentID={spawnedSegmentNetworkId} 추가 완료.");
@@ -491,6 +438,7 @@ public class PlayerSnakeController : NetworkBehaviour
              Debug.LogError($"[{GetType().Name} Client - ID:{NetworkObjectId}] SegmentID={spawnedSegmentNetworkId}에 해당하는 NetworkObject를 찾지 못했습니다. 스폰 동기화 지연일 수 있습니다.");
         }
     }
+  
 
     /// <summary>
     /// 몸체 세그먼트 값 업데이트 (서버 전용 로직)
@@ -513,6 +461,9 @@ public class PlayerSnakeController : NetworkBehaviour
                 if (i < _snakeBodyHandler._bodySegments.Count && _snakeBodyHandler._bodySegments[i] != null)
                 {
                     var segment = _snakeBodyHandler._bodySegments[i].GetComponent<SnakeBodySegment>();
+                    SnakeSkin segmentSkin = segment.GetComponent<SnakeSkin>();
+                    segmentSkin.ChangeTo(targetMaterial);
+
                     _bodySegmentComponents.Add(segment);
                 }
                 else
@@ -611,7 +562,7 @@ public class PlayerSnakeController : NetworkBehaviour
     private void ApplyPlayerSkin(int skinIndex)
     {
 
-        Material targetMaterial = playerSkins[skinIndex];
+         targetMaterial = playerSkins[skinIndex];
         if (targetMaterial == null)
         {
             Debug.LogError($"[{GetType().Name} ID:{NetworkObjectId}] Player Skins 리스트의 인덱스 {skinIndex}에 할당된 Material이 null입니다.");

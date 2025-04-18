@@ -52,32 +52,32 @@ public class GameStateNetworkHandler : NetworkBehaviour
     /// <summary>
     /// 돈 업데이트를 클라이언트에 전달
     /// </summary>
-    [ClientRpc]
-    public void UpdateMoneyClientRpc(int money)
-    {
-        if (!_isInitialized)
-        {
-            Debug.LogError("[GameStateNetworkHandler] 초기화되지 않은 상태에서 UpdateMoneyClientRpc 호출됨");
-            return;
-        }
+    // [ClientRpc]
+    // public void UpdateMoneyClientRpc(int money)
+    // {
+    //     if (!_isInitialized)
+    //     {
+    //         Debug.LogError("[GameStateNetworkHandler] 초기화되지 않은 상태에서 UpdateMoneyClientRpc 호출됨");
+    //         return;
+    //     }
         
-        _gameState.UpdateClientMoney(money);
-    }
+    //     _gameState.UpdateClientMoney(money);
+    // }
     
-    /// <summary>
-    /// 몬스터 수 업데이트를 클라이언트에 전달
-    /// </summary>
-    [ClientRpc]
-    public void UpdateMonsterCountClientRpc(int count)
-    {
-        if (!_isInitialized)
-        {
-            Debug.LogError("[GameStateNetworkHandler] 초기화되지 않은 상태에서 UpdateMonsterCountClientRpc 호출됨");
-            return;
-        }
+    // /// <summary>
+    // /// 몬스터 수 업데이트를 클라이언트에 전달
+    // /// </summary>
+    // [ClientRpc]
+    // public void UpdateMonsterCountClientRpc(int count)
+    // {
+    //     if (!_isInitialized)
+    //     {
+    //         Debug.LogError("[GameStateNetworkHandler] 초기화되지 않은 상태에서 UpdateMonsterCountClientRpc 호출됨");
+    //         return;
+    //     }
         
-        _gameState.UpdateClientMonsterCount(count);
-    }
+    //     _gameState.UpdateClientMonsterCount(count);
+    // }
     
     /// <summary>
     /// 초기 상태를 클라이언트에 전달

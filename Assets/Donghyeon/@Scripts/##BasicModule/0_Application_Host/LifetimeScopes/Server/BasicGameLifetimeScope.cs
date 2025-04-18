@@ -46,6 +46,10 @@ public class BasicGameLifetimeScope : LifetimeScope
         _appleManager = Parent.Container.Resolve<AppleManager>();
         builder.RegisterInstance(_appleManager);
 
+        builder.RegisterComponentInHierarchy<BasicGameState>();
+               
+        builder.RegisterComponentInHierarchy<UI_BasicGame>();
+
         _debugClassFacade?.LogInfo(GetType().Name, "BasicGameScene 등록 시도");
         builder.RegisterComponentInHierarchy<BasicGameScene>();
    
@@ -62,8 +66,11 @@ public class BasicGameLifetimeScope : LifetimeScope
         _netUtils = Parent.Container.Resolve<NetUtils>();
         builder.RegisterInstance(_netUtils);
 
-        builder.Register<PlayerSnakeController>(Lifetime.Singleton);
         
+
+
+
+        builder.Register<PlayerSnakeController>(Lifetime.Singleton);
 
         builder.RegisterBuildCallback(container => {
             try {
@@ -75,7 +82,21 @@ public class BasicGameLifetimeScope : LifetimeScope
                 Debug.LogError($"오브젝트 설정 중 오류 발생: {e.Message}\n{e.StackTrace}");
             }
         });
-        
+        builder.RegisterBuildCallback(container => {
+            try {
+                Debug.Log("[BasicGameLifetimeScope] 의존성 객체 초기화 시작");
+                var basicGameState = container.Resolve<BasicGameState>();
+                basicGameState.Initialize();
+
+
+                
+                Debug.Log("[BasicGameLifetimeScope] 모든 컴포넌트 초기화 완료");
+            } 
+            catch (Exception ex) {
+                Debug.LogError($"[BasicGameLifetimeScope] 초기화 중 오류 발생: {ex.Message}\n{ex.StackTrace}");
+            }
+        });
+
     }
 
     

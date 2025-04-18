@@ -31,19 +31,11 @@ public class BasicGameState : GameStateLifetimeScope
     private bool _isServer = false; // 서버인지 여부를 저장
     
     [Header("Game State")]
-    private float _timer = 20.0f;
-    private int _wave = 1;
-    private int _money = 50;
-    private int _monsterCount = 0;
-    private bool _isBossWave = false;
+    private float _timer = 180.0f;
+
     
     [Header("Game Settings")]
-    public int HeroCount;
-    public int HeroMaximumCount = 25;
-    // public List<ServerMonster> monsters = new List<ServerMonster>();
-    public int UpgradeMoney = 100;
-    public int MonsterLimitCount = 100;
-    private float _nextWaveTimer = 60.0f;  // 웨이브 시간 설정
+
     
     [Header("Optimization")]
     private float _timerUpdateInterval = 0.1f;
@@ -58,26 +50,7 @@ public class BasicGameState : GameStateLifetimeScope
     /// </summary>
     public float Timer => _timer;
     
-    /// <summary>
-    /// 현재 웨이브
-    /// </summary>
-    public int Wave => _wave;
-    
-    /// <summary>
-    /// 현재 보유 자금
-    /// </summary>
-    public int Money => _money;
-    
-    /// <summary>
-    /// 현재 몬스터 수
-    /// </summary>
-    public int MonsterCount => _monsterCount;
-    
-    /// <summary>
-    /// 현재 보스 웨이브 여부
-    /// </summary>
-    public bool IsBossWave => _isBossWave;
-    
+
     /// <summary>
     /// 현재 게임 상태
     /// </summary>
@@ -103,9 +76,7 @@ public class BasicGameState : GameStateLifetimeScope
 
     [Inject] public NetworkManager _networkManager;
     [Inject] public ResourceManager _resourceManager;
-    [Inject] private ObjectManager _objectManager;
-    [Inject] private MapManager _mapManager;
-
+ 
     #endregion
 
     #region Unity Lifecycle
@@ -211,23 +182,23 @@ public class BasicGameState : GameStateLifetimeScope
         _sessionManager.SetupConnectingPlayerSessionData(clientId, playerId, playerData);
         
         // 필요한 추가 처리
-        SyncGameStateToPlayer(clientId);
+        // SyncGameStateToPlayer(clientId);
     }
 
-    private void SyncGameStateToPlayer(ulong clientId)
-    {
-        if (_networkHandler == null) return;
+    // private void SyncGameStateToPlayer(ulong clientId)
+    // {
+    //     if (_networkHandler == null) return;
         
-        // 특정 플레이어에게만 상태 동기화
-        _networkHandler.SyncStateToClientRpc(
-            _timer,
-            _wave,
-            _money,
-            _monsterCount,
-            _isBossWave,
-            new ClientRpcParams { Send = new ClientRpcSendParams { TargetClientIds = new[] { clientId } } }
-        );
-    }
+    //     // 특정 플레이어에게만 상태 동기화
+    //     _networkHandler.SyncStateToClientRpc(
+    //         _timer,
+    //         _wave,
+    //         _money,
+    //         _monsterCount,
+    //         _isBossWave,
+    //         new ClientRpcParams { Send = new ClientRpcSendParams { TargetClientIds = new[] { clientId } } }
+    //     );
+    // }
 
     public void OnPlayerDisconnected(ulong clientId)
     {
@@ -317,12 +288,12 @@ public class BasicGameState : GameStateLifetimeScope
     /// </summary>
     private void InitializeState()
     {
-        _timer = 20.0f;
-        _wave = 1;
-        _money = 50;
-        _monsterCount = 0;
-        _isBossWave = false;
-        Debug.Log("[BasicGameState] 상태 초기화 완료");
+        // _timer = 20.0f;
+        // _wave = 1;
+        // _money = 50;
+        // _monsterCount = 0;
+        // _isBossWave = false;
+        // Debug.Log("[BasicGameState] 상태 초기화 완료");
     }
     
     /// <summary>
@@ -333,9 +304,7 @@ public class BasicGameState : GameStateLifetimeScope
         UpdateTimer();
     }
     
-    /// <summary>
-    /// 타이머 업데이트
-    /// </summary>
+
     private void UpdateTimer()
     {
         // 네트워크 핸들러 null 체크
@@ -360,29 +329,12 @@ public class BasicGameState : GameStateLifetimeScope
             // 타이머가 0이 되면 새 웨이브 시작
             if (_timer <= 0)
             {
-                StartNextWave();
+                // StartNextWave();
             }
         }
     }
     
-    /// <summary>
-    /// 다음 웨이브 시작
-    /// </summary>
-    private void StartNextWave()
-    {
-        if (_networkHandler == null) return;
-        
-        _wave++;
-        _timer = _nextWaveTimer;
-        
-        // 10의 배수 웨이브는 보스 웨이브
-        _isBossWave = (_wave % 10 == 0);
-        
-        // 클라이언트에 웨이브 변경 알림
-        _networkHandler.WaveChangedClientRpc(_wave, _timer, _isBossWave);
-        
-        Debug.Log($"[BasicGameState] 새 웨이브 시작: Wave={_wave}, 보스={_isBossWave}");
-    }
+
     
     /// <summary>
     /// 초기 상태를 클라이언트에 동기화
@@ -391,13 +343,13 @@ public class BasicGameState : GameStateLifetimeScope
     {
         if (_networkHandler == null) return;
         
-        _networkHandler.SyncInitialStateClientRpc(
-            _timer,
-            _wave,
-            _money,
-            _monsterCount,
-            _isBossWave
-        );
+        // _networkHandler.SyncInitialStateClientRpc(
+        //     _timer,
+        //     _wave,
+        //     _money,
+        //     _monsterCount,
+        //     _isBossWave
+        // );
     }
     
     #endregion
@@ -423,48 +375,12 @@ public class BasicGameState : GameStateLifetimeScope
         
         if (type == HostType.All)
         {
-            _money += value;
-            _networkHandler.UpdateMoneyClientRpc(_money);
-            Debug.Log($"[BasicGameState] 돈 추가: +{value}, 현재 돈: {_money}");
+            // _networkHandler.UpdateMoneyClientRpc(_money);
+            // Debug.Log($"[BasicGameState] 돈 추가: +{value}, 현재 돈: {_money}");
         }
     }
     
-    /// <summary>
-    /// 몬스터 제거 메서드
-    /// </summary>
-    /// <param name="monster">제거할 몬스터</param>
-    /// <param name="Boss">보스 여부</param>
-    // public void RemoveMonster(ServerMonster monster, bool Boss = false)
-    // {
-    //     if (!IsServerReady() || _networkHandler == null) return;
-        
-    //     if (monster != null && monsters.Contains(monster))
-    //     {
-    //         monsters.Remove(monster);
-    //         _monsterCount = monsters.Count;
-            
-    //         _networkHandler.UpdateMonsterCountClientRpc(_monsterCount);
-    //         Debug.Log($"[BasicGameState] 몬스터 제거: 현재 몬스터 수: {_monsterCount}");
-    //     }
-    // }
-    
-    // /// <summary>
-    // /// 몬스터 추가 메서드
-    // /// </summary>
-    // /// <param name="monster">추가할 몬스터</param>
-    // public void SetMonster(ServerMonster monster)
-    // {
-    //     if (!IsServerReady() || _networkHandler == null) return;
-        
-    //     if (monster != null && !monsters.Contains(monster))
-    //     {
-    //         monsters.Add(monster);
-    //         _monsterCount = monsters.Count;
-            
-    //         _networkHandler.UpdateMonsterCountClientRpc(_monsterCount);
-    //         Debug.Log($"[BasicGameState] 몬스터 추가: 현재 몬스터 수: {_monsterCount}");
-    //     }
-    // }
+  
     
     /// <summary>
     /// 게임 오버 이벤트 발생
@@ -497,40 +413,18 @@ public class BasicGameState : GameStateLifetimeScope
     /// </summary>
     public void UpdateClientWave(int wave, float timer, bool isBossWave)
     {
-        if (!_isServer) // 클라이언트만 값 업데이트
-        {
-            _wave = wave;
-            _timer = timer;
-            _isBossWave = isBossWave;
+        // if (!_isServer) // 클라이언트만 값 업데이트
+        // {
+        //     _wave = wave;
+        //     _timer = timer;
+        //     _isBossWave = isBossWave;
             
-            OnWaveChanged?.Invoke(_isBossWave);
-            OnTimerUp?.Invoke();
-        }
+        //     OnWaveChanged?.Invoke(_isBossWave);
+        //     OnTimerUp?.Invoke();
+        // }
     }
     
-    /// <summary>
-    /// 클라이언트 돈 업데이트
-    /// </summary>
-    public void UpdateClientMoney(int money)
-    {
-        if (!_isServer) // 클라이언트만 값 업데이트
-        {
-            _money = money;
-            OnMoneyUp?.Invoke();
-        }
-    }
-    
-    /// <summary>
-    /// 클라이언트 몬스터 수 업데이트
-    /// </summary>
-    public void UpdateClientMonsterCount(int count)
-    {
-        if (!_isServer) // 클라이언트만 값 업데이트
-        {
-            _monsterCount = count;
-        }
-    }
-    
+ 
     /// <summary>
     /// 클라이언트 초기 상태 동기화
     /// </summary>
@@ -539,10 +433,10 @@ public class BasicGameState : GameStateLifetimeScope
         if (!_isServer) // 클라이언트만 값 업데이트
         {
             _timer = timer;
-            _wave = wave;
-            _money = money;
-            _monsterCount = monsterCount;
-            _isBossWave = isBossWave;
+            // _wave = wave;
+            // _money = money;
+            // _monsterCount = monsterCount;
+            // _isBossWave = isBossWave;
             
             OnTimerUp?.Invoke();
             OnMoneyUp?.Invoke();
@@ -569,23 +463,7 @@ public class BasicGameState : GameStateLifetimeScope
             Debug.LogError("[BasicGameState] ResourceManager 주입 실패");
         }
         
-        if (_objectManager != null)
-        {
-            Debug.Log("[BasicGameState] ObjectManager 주입 성공");
-        }
-        else
-        {
-            Debug.LogError("[BasicGameState] ObjectManager 주입 실패");
-        }
-        
-        if (_mapManager != null)
-        {
-            Debug.Log("[BasicGameState] MapManager 주입 성공");
-        }
-        else
-        {
-            Debug.LogError("[BasicGameState] MapManager 주입 실패");
-        }
+
         
         Debug.Log($"[BasicGameState] ID: {GetInstanceID()}, 이름: {gameObject.name}");
     }

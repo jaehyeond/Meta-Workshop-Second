@@ -208,6 +208,10 @@ PrefabInstance:
       propertyPath: _targetMask.m_Bits
       value: 64
       objectReference: {fileID: 0}
+    - target: {fileID: 7525618918963508818, guid: 53b455a24a377464b8de74f2900c2c36, type: 3}
+      propertyPath: _playerSnakeController
+      value: 
+      objectReference: {fileID: 7594944605007813469}
     - target: {fileID: 8172886772292919964, guid: 53b455a24a377464b8de74f2900c2c36, type: 3}
       propertyPath: m_LocalRotation.w
       value: 0.29417133

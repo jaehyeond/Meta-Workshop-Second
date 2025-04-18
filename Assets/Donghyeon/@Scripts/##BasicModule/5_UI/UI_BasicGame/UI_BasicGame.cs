@@ -32,18 +32,13 @@ namespace Unity.Assets.Scripts.UI
         
         enum Texts
         {
-            MonsterCount_T,
-            Money_T,
-            Upgrade_Money_T,
-            Summon_T,
+       
             Timer_T,
-            Wave_T,
-            HeroCount_T
+     
         }
         
         enum Images
         {
-            Monster_Count_Fill
         }
         
         enum GameObjects
@@ -53,15 +48,13 @@ namespace Unity.Assets.Scripts.UI
 
         enum Buttons
         {
-            Summon_B,
-            Upgrade_B
+       
         }
 
 
         #endregion
 
 
-        [Inject] private ObjectManager _objectManager;
         [Inject] private BasicGameState _basicGameState;
         
 
@@ -91,8 +84,7 @@ namespace Unity.Assets.Scripts.UI
             BindObjects(typeof(GameObjects));
             BindButtons(typeof(Buttons));
 
-            GetButton((int)Buttons.Summon_B).gameObject.BindEvent(OnClickSummonButton);
-            GetButton((int)Buttons.Upgrade_B).gameObject.BindEvent(OnClickUpgradeButton);
+   
             Refresh();
 
             return true;
@@ -108,17 +100,17 @@ namespace Unity.Assets.Scripts.UI
 
         private void Update()
         {
-            int monsterCount = _objectManager.MonsterRoot.childCount;
+            // int monsterCount = _objectManager.MonsterRoot.childCount;
             // setMonsterCount( monsterCount);
-            GetText((int)Texts.MonsterCount_T).text = monsterCount.ToString() + "/" + _basicGameState.MonsterLimitCount.ToString();
-            GetImage((int)Images.Monster_Count_Fill).fillAmount = (float)monsterCount / _basicGameState.MonsterLimitCount;
-            GetText((int)Texts.Money_T).text = _basicGameState.Money.ToString();
-            GetText((int)Texts.Wave_T).text = "Wave " + _basicGameState.Wave.ToString();
+            // GetText((int)Texts.MonsterCount_T).text = monsterCount.ToString() + "/" + _basicGameState.MonsterLimitCount.ToString();
+            // GetImage((int)Images.Monster_Count_Fill).fillAmount = (float)monsterCount / _basicGameState.MonsterLimitCount;
+            // GetText((int)Texts.Money_T).text = _basicGameState.Money.ToString();
+            // GetText((int)Texts.Wave_T).text = "Wave " + _basicGameState.Wave.ToString();
             // Game_Mng.instance.GetMoney(1);
 
             // GetText((int)Texts.Summon_T).text = _basicGameManager.SummonCount.ToString();
             // GetText((int)Texts.Upgrade_Money_T).text = _basicGameManager.UpgradeMoney.ToString();
-            GetText((int)Texts.Timer_T).text = _basicGameState.IsBossWave == false ? UpdateTimerText() : "In BOSS!";
+            GetText((int)Texts.Timer_T).text =  UpdateTimerText();
         
         
 
@@ -192,33 +184,6 @@ namespace Unity.Assets.Scripts.UI
         
         #endregion
 
-  
-
-        #region Editor Methods
-        
-        #if UNITY_EDITOR
-        [ContextMenu("로그: Matching 하위 객체 출력")]
-        private void LogMatchingChildrenMenu()
-        {
-        }
-        
-        // Inspector에서 버튼으로 표시되는 메서드
-        // [CustomEditor(typeof(UI_BasicGame))]
-        // public class UI_BasicGameEditor : DebugComponents.UIDebugEditorBase
-        // {
-        //     public override void OnInspectorGUI()
-        //     {
-        //         DrawDefaultInspector();
-                
-        //         UI_BasicGame script = (UI_BasicGame)target;
-                
-        //         // UIDebugLogger의 에디터 확장 기능 사용
-        //         AddDebugButtons(script.gameObject, "-", "[UI_BasicGame]");
-        //     }
-        // }
-        #endif
-        
-        #endregion
     }
 }
 
