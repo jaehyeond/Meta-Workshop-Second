@@ -890,8 +890,8 @@ public class PlayerSnakeController : NetworkBehaviour
         try
         {
             // 속도 증가 처리
-            const float SPEED_INCREMENT = 1.0f;
-            const float MAX_SPEED = 15.0f;
+            const float SPEED_INCREMENT = 0.5f;
+            const float MAX_SPEED = 10.0f;
             
             // 현재 속도와 새 속도 계산
             float currentSpeed = NetworkSnakeSpeed.Value;
