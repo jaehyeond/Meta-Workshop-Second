@@ -49,6 +49,8 @@ public class PlayerSnakeController : NetworkBehaviour
     #region Network Variables
     /// <summary>네트워크를 통해 동기화되는 플레이어 스킨 Material 인덱스</summary>
     public readonly NetworkVariable<int> NetworkSkinIndex = new(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+    /// <summary>네트워크를 통해 동기화되는 스네이크 속도</summary>
+    public readonly NetworkVariable<float> NetworkSnakeSpeed = new(5.0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
     /// <summary>네트워크를 통해 동기화되는 플레이어 점수</summary>
     private readonly NetworkVariable<int> _networkScore = new(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
     /// <summary>네트워크를 통해 동기화되는 스네이크 크기</summary>
@@ -78,8 +80,15 @@ public class PlayerSnakeController : NetworkBehaviour
         Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] OnNetworkSpawn - OwnerClientId: {OwnerClientId}, LocalClientId: {NetworkManager.Singleton.LocalClientId}, IsServer: {IsServer}, IsClient: {IsClient}, IsOwner: {IsOwner}");
         _snake = GetComponentInChildren<Snake>(true); 
         NetworkSkinIndex.OnValueChanged += HandleSkinIndexChanged;
+        NetworkSnakeSpeed.OnValueChanged += HandleSnakeSpeedChanged;
         // 초기 색상 적용 (스폰 시점의 값으로) -> 초기 스킨 적용으로 변경
         ApplyPlayerSkin(NetworkSkinIndex.Value);
+        
+        // 초기 속도 적용
+        if (_snake != null && _snake.Head != null)
+        {
+            _snake.Head.ChangeSpeed(NetworkSnakeSpeed.Value);
+        }
 
         if (IsServer)
         {
@@ -112,6 +121,12 @@ public class PlayerSnakeController : NetworkBehaviour
         {
             NetworkSkinIndex.OnValueChanged -= HandleSkinIndexChanged;
         }
+        
+        // 속도 변경 감지 콜백 해제
+        if (NetworkSnakeSpeed != null)
+        {
+            NetworkSnakeSpeed.OnValueChanged -= HandleSnakeSpeedChanged;
+        }
 
         if (IsClient){}
   
@@ -137,6 +152,7 @@ public class PlayerSnakeController : NetworkBehaviour
         string playerId = "Player_" + OwnerClientId;
         int initialScore = 0;
         int initialSize = 1;
+        float initialSpeed = 5.0f;
 
         // 플레이어 고유 색상 결정 (예시: Client ID 기반) -> 스킨 인덱스 결정으로 변경
         int initialSkinIndex = 0;
@@ -155,8 +171,9 @@ public class PlayerSnakeController : NetworkBehaviour
         if (_networkScore.Value != initialScore) _networkScore.Value = initialScore;
         if (_networkBodyCount.Value != initialSize) _networkBodyCount.Value = initialSize;
         if (NetworkSkinIndex.Value != initialSkinIndex) NetworkSkinIndex.Value = initialSkinIndex; // 서버에서 스킨 인덱스 설정
+        if (NetworkSnakeSpeed.Value != initialSpeed) NetworkSnakeSpeed.Value = initialSpeed; // 서버에서 초기 속도 설정
 
-        Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] NetworkVariables Set: PlayerID={_networkPlayerId.Value}, Score={_networkScore.Value}, BodyCount={_networkBodyCount.Value}, SkinIndex={NetworkSkinIndex.Value}"); // Color 로그 제거, SkinIndex 로그 추가
+        Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] NetworkVariables Set: PlayerID={_networkPlayerId.Value}, Score={_networkScore.Value}, BodyCount={_networkBodyCount.Value}, SkinIndex={NetworkSkinIndex.Value}, Speed={NetworkSnakeSpeed.Value}");
 
         InitializeBodyHandler(); 
     }
@@ -851,6 +868,49 @@ public class PlayerSnakeController : NetworkBehaviour
             Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 점수 4점 단위 증가 감지, 세그먼트 추가");
             AddBodySegmentOnServer();
             UpdateBodyValuesOnServer(newValue);
+        }
+    }
+
+    // 속도 변경 감지 콜백 메소드
+    private void HandleSnakeSpeedChanged(float previousSpeed, float newSpeed)
+    {
+        Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] Snake 속도 변경 감지: {previousSpeed} → {newSpeed}");
+        
+        if (_snake != null && _snake.Head != null)
+        {
+            _snake.Head.ChangeSpeed(newSpeed);
+        }
+    }
+
+    [ServerRpc]
+    public void NotifyBeefEatenServerRpc(ulong beefNetworkId)
+    {
+        Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] Beef 먹음 알림: BeefID={beefNetworkId}");
+        
+        try
+        {
+            // 속도 증가 처리
+            const float SPEED_INCREMENT = 1.0f;
+            const float MAX_SPEED = 15.0f;
+            
+            // 현재 속도와 새 속도 계산
+            float currentSpeed = NetworkSnakeSpeed.Value;
+            float newSpeed = Mathf.Min(currentSpeed + SPEED_INCREMENT, MAX_SPEED);
+            
+            // NetworkVariable 값 변경 (자동으로 모든 클라이언트에 동기화됨)
+            NetworkSnakeSpeed.Value = newSpeed;
+            
+            Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 속도 증가: {currentSpeed} → {newSpeed}");
+            
+            // Beef 오브젝트 제거
+            DespawnFoodObject(beefNetworkId, "Beef");
+            
+            // 새 음식 생성
+            SpawnNewRandomFood();
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[{GetType().Name} Server ID:{NetworkObjectId}] Beef 처리 중 오류: {ex.Message}");
         }
     }
 }

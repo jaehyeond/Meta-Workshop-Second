@@ -87,4 +87,14 @@ public class SnakeHead : BaseObject
         _currentValue = value;
         UpdateValueDisplay();
     }
+    
+    /// <summary>
+    /// 스네이크의 속도를 변경합니다.
+    /// </summary>
+    /// <param name="newSpeed">새로운 속도 값</param>
+    public void ChangeSpeed(float newSpeed)
+    {
+        Debug.Log($"[{GetType().Name}] 속도 변경: {_speed} → {newSpeed}");
+        _speed = newSpeed;
+    }
 }

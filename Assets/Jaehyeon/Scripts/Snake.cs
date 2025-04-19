@@ -160,11 +160,12 @@ public class Snake : BaseObject
         string targetName = target.name;
         bool isApple = targetName.Contains("Apple");
         bool isCandy = targetName.Contains("Candy");
+        bool isBeef = targetName.Contains("Beef");
         
-        // Apple, Candy 또는 다른 음식 아이템인지 확인
-        if (isApple || isCandy)
+        // Apple, Candy, Beef 또는 다른 음식 아이템인지 확인
+        if (isApple || isCandy || isBeef)
         {
-            string foodType = isApple ? "Apple" : "Candy";
+            string foodType = isApple ? "Apple" : (isCandy ? "Candy" : "Beef");
             Debug.Log($"[{GetType().Name}] {foodType} 충돌 감지: {targetName}");
             
             // BaseObject 컴포넌트를 통해 공통 기능 접근
@@ -181,6 +182,19 @@ public class Snake : BaseObject
             {
                 Debug.LogError($"[{GetType().Name}] {foodType}에서 NetworkObject 컴포넌트를 찾을 수 없습니다!");
                 return;
+            }
+            
+            // Beef인 경우 별도 처리
+            if (isBeef)
+            {
+                // 서버에 Beef 먹었음을 알림
+                _playerSnakeController.NotifyBeefEatenServerRpc(foodNetObj.NetworkObjectId);
+                
+                // 로컬에서 음식을 임시로 비활성화 (시각적 피드백을 위해)
+                target.SetActive(false);
+                
+                Debug.Log($"[{GetType().Name}] Beef 처리 완료: NetworkID={foodNetObj.NetworkObjectId}");
+                return; // 여기서 종료
             }
             
             // 음식 값 결정 (Apple: 양수, Candy: 음수)
