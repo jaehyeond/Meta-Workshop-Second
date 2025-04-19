@@ -501,8 +501,8 @@ public class PlayerSnakeController : NetworkBehaviour
 
         try
         {
-               // 서버에서 스폰 및 소유권 이전 시도
-     
+            // 서버에서 스폰 및 소유권 이전 시도
+            
             // 1. 프리팹 로드 (서버에서)
             GameObject segmentPrefab = _resourceManager.Load<GameObject>("Body Detail");
             if (segmentPrefab == null)
@@ -513,20 +513,33 @@ public class PlayerSnakeController : NetworkBehaviour
 
             // 2. 프리팹 인스턴스화 (서버에서)
             GameObject segmentInstance = Instantiate(segmentPrefab, spawnPosition, spawnRotation);
-             if (segmentInstance == null)
+            if (segmentInstance == null)
             {
                 Debug.LogError($"[{GetType().Name} Server - ID:{NetworkObjectId}] 세그먼트 인스턴스화 실패!");
                 return;
             }
 
-            // 스킨 적용 로직 추가
-            // SnakeSkin segmentSkin = segmentInstance.GetComponent<SnakeSkin>();
-            // segmentSkin.ChangeTo(targetMaterial);
-
+            // 스킨 적용 로직 추가 (활성화)
+            int skinIndex = NetworkSkinIndex.Value;
+            if (skinIndex >= 0 && skinIndex < playerSkins.Count)
+            {
+                // 현재 스킨 인덱스에 맞는 Material 가져오기
+                Material segmentMaterial = playerSkins[skinIndex];
+                if (segmentMaterial != null)
+                {
+                    SnakeSkin segmentSkin = segmentInstance.GetComponent<SnakeSkin>();
+                    if (segmentSkin != null)
+                    {
+                        // ChangeTo 메소드를 사용해 스킨 적용
+                        segmentSkin.ChangeTo(segmentMaterial);
+                        Debug.Log($"[{GetType().Name} Server - ID:{NetworkObjectId}] 새 세그먼트에 스킨(인덱스:{skinIndex}) 적용 완료");
+                    }
+                }
+            }
 
             // 3. NetworkObject 컴포넌트 가져오기
             NetworkObject networkObject = segmentInstance.GetComponent<NetworkObject>();
-             if (networkObject == null)
+            if (networkObject == null)
             {
                 Debug.LogError($"[{GetType().Name} Server - ID:{NetworkObjectId}] 생성된 세그먼트에 NetworkObject 컴포넌트가 없습니다!");
                 Destroy(segmentInstance);
@@ -539,12 +552,10 @@ public class PlayerSnakeController : NetworkBehaviour
 
             // 5. 소유권 클라이언트에게 이전
             networkObject.ChangeOwnership(OwnerClientId);
-             Debug.Log($"[{GetType().Name} Server - ID:{NetworkObjectId}] 세그먼트 소유권 이전 -> Client {OwnerClientId}");
+            Debug.Log($"[{GetType().Name} Server - ID:{NetworkObjectId}] 세그먼트 소유권 이전 -> Client {OwnerClientId}");
 
             // 6. 모든 클라이언트에게 스폰 알림 (PlayerController ID, Segment ID, 그리고 스킨 인덱스 전달)
-            NotifySegmentSpawnedClientRpc(this.NetworkObjectId, networkObject.NetworkObjectId);
-
-       
+            NotifySegmentSpawnedClientRpc(this.NetworkObjectId, networkObject.NetworkObjectId, skinIndex);
         }
         catch (System.Exception ex)
         {
@@ -554,9 +565,9 @@ public class PlayerSnakeController : NetworkBehaviour
 
 
     [ClientRpc]
-    private void NotifySegmentSpawnedClientRpc(ulong ownerPlayerControllerId, ulong spawnedSegmentNetworkId)
+    private void NotifySegmentSpawnedClientRpc(ulong ownerPlayerControllerId, ulong spawnedSegmentNetworkId, int skinIndex)
     {
-        Debug.Log($"[{GetType().Name} Client - ID:{NetworkObjectId}] NotifySegmentSpawnedClientRpc 수신: PlayerControllerID={ownerPlayerControllerId}, SegmentID={spawnedSegmentNetworkId}");
+        Debug.Log($"[{GetType().Name} Client - ID:{NetworkObjectId}] NotifySegmentSpawnedClientRpc 수신: PlayerControllerID={ownerPlayerControllerId}, SegmentID={spawnedSegmentNetworkId}, SkinIndex={skinIndex}");
 
         // 1. PlayerController 찾기
         if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(ownerPlayerControllerId, out NetworkObject playerControllerNetworkObject) || playerControllerNetworkObject == null)
@@ -577,38 +588,53 @@ public class PlayerSnakeController : NetworkBehaviour
         {
             if (segmentNetworkObject != null)
             {
-                 GameObject segmentInstance = segmentNetworkObject.gameObject;
-                 BaseObject segment = segmentInstance.GetComponent<BaseObject>();
-                 SnakeBodySegment segmentComponent = segmentInstance.GetComponent<SnakeBodySegment>();
- 
+                GameObject segmentInstance = segmentNetworkObject.gameObject;
+                BaseObject segment = segmentInstance.GetComponent<BaseObject>();
+                SnakeBodySegment segmentComponent = segmentInstance.GetComponent<SnakeBodySegment>();
 
-                 if (segment != null && segmentComponent != null)
-                 {
-                     // 3. 타겟 컨트롤러의 핸들러에 세그먼트 추가
-                     // 서버에서만 부모 설정을 수행하도록 수정
-                     if (IsServer)
-                     {
-                         segment.transform.SetParent(targetController._snake.transform, true); // 부모 설정 (서버만 실행)
-                         Debug.Log($"[{GetType().Name} Server - ID:{NetworkObjectId}] 서버에서 세그먼트의 부모 설정 완료");
-                     }
-             
-                     // 핸들러에 세그먼트 추가 (모든 클라이언트 실행)
-                     targetController._snakeBodyHandler.AddBodySegment(segment, segmentComponent);
-                     Debug.Log($"[{GetType().Name} Client - ID:{NetworkObjectId}] PlayerControllerID={ownerPlayerControllerId}의 핸들러에 SegmentID={spawnedSegmentNetworkId} 추가 완료.");
-                 }
-                 else
-                 {
-                     Debug.LogError($"[{GetType().Name} Client - ID:{NetworkObjectId}] SegmentID={spawnedSegmentNetworkId} 객체에서 필요한 컴포넌트(BaseObject/SnakeBodySegment)를 찾지 못했습니다.");
-                 }
+
+                if (segment != null && segmentComponent != null)
+                {
+                    // 클라이언트에서도 스킨 적용
+                    if (skinIndex >= 0 && skinIndex < targetController.playerSkins.Count)
+                    {
+                        Material segmentMaterial = targetController.playerSkins[skinIndex];
+                        if (segmentMaterial != null)
+                        {
+                            SnakeSkin segmentSkin = segmentInstance.GetComponent<SnakeSkin>();
+                            if (segmentSkin != null)
+                            {
+                                segmentSkin.ChangeTo(segmentMaterial);
+                                Debug.Log($"[{GetType().Name} Client - ID:{NetworkObjectId}] 클라이언트에서 세그먼트에 스킨(인덱스:{skinIndex}) 적용 완료");
+                            }
+                        }
+                    }
+
+                    // 3. 타겟 컨트롤러의 핸들러에 세그먼트 추가
+                    // 서버에서만 부모 설정을 수행하도록 수정
+                    if (IsServer)
+                    {
+                        segment.transform.SetParent(targetController._snake.transform, true); // 부모 설정 (서버만 실행)
+                        Debug.Log($"[{GetType().Name} Server - ID:{NetworkObjectId}] 서버에서 세그먼트의 부모 설정 완료");
+                    }
+              
+                    // 핸들러에 세그먼트 추가 (모든 클라이언트 실행)
+                    targetController._snakeBodyHandler.AddBodySegment(segment, segmentComponent);
+                    Debug.Log($"[{GetType().Name} Client - ID:{NetworkObjectId}] PlayerControllerID={ownerPlayerControllerId}의 핸들러에 SegmentID={spawnedSegmentNetworkId} 추가 완료.");
+                }
+                else
+                {
+                    Debug.LogError($"[{GetType().Name} Client - ID:{NetworkObjectId}] SegmentID={spawnedSegmentNetworkId} 객체에서 필요한 컴포넌트(BaseObject/SnakeBodySegment)를 찾지 못했습니다.");
+                }
             }
             else
             {
-                 Debug.LogError($"[{GetType().Name} Client - ID:{NetworkObjectId}] SegmentID={spawnedSegmentNetworkId}에 해당하는 NetworkObject를 찾았으나 null입니다.");
+                Debug.LogError($"[{GetType().Name} Client - ID:{NetworkObjectId}] SegmentID={spawnedSegmentNetworkId}에 해당하는 NetworkObject를 찾았으나 null입니다.");
             }
         }
         else
         {
-             Debug.LogError($"[{GetType().Name} Client - ID:{NetworkObjectId}] SegmentID={spawnedSegmentNetworkId}에 해당하는 NetworkObject를 찾지 못했습니다. 스폰 동기화 지연일 수 있습니다.");
+            Debug.LogError($"[{GetType().Name} Client - ID:{NetworkObjectId}] SegmentID={spawnedSegmentNetworkId}에 해당하는 NetworkObject를 찾지 못했습니다. 스폰 동기화 지연일 수 있습니다.");
         }
     }
   
@@ -730,48 +756,82 @@ public class PlayerSnakeController : NetworkBehaviour
     }
 
     /// <summary>
-    /// 주어진 인덱스에 해당하는 스킨 Material을 플레이어 지렁이 머리에 적용합니다.
+    /// 주어진 인덱스에 해당하는 스킨 Material을 플레이어 지렁이 머리와 모든 바디 세그먼트에 적용합니다.
     /// </summary>
     private void ApplyPlayerSkin(int skinIndex)
     {
+        if (skinIndex < 0 || skinIndex >= playerSkins.Count)
+        {
+            Debug.LogError($"[{GetType().Name} ID:{NetworkObjectId}] Player Skins 리스트의 인덱스 {skinIndex}가 범위를 벗어났습니다. 리스트 크기: {playerSkins.Count}");
+            return;
+        }
 
-         targetMaterial = playerSkins[skinIndex];
+        // 타겟 Material 저장
+        targetMaterial = playerSkins[skinIndex];
         if (targetMaterial == null)
         {
             Debug.LogError($"[{GetType().Name} ID:{NetworkObjectId}] Player Skins 리스트의 인덱스 {skinIndex}에 할당된 Material이 null입니다.");
             return;
         }
 
-        // 3. SnakeSkin 컴포넌트 찾기
-        SnakeSkin snakeSkinComponent = _snake.Head.GetComponent<SnakeSkin>();
-        if (snakeSkinComponent == null)
-        {
-            Debug.LogError($"[{GetType().Name} ID:{NetworkObjectId}] Snake Head 게임 오브젝트에서 SnakeSkin 컴포넌트를 찾을 수 없습니다.");
-            return;
-        }
+        Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] 스킨 적용 시작: 인덱스={skinIndex}, Material={targetMaterial.name}");
 
-        // 4. SnakeSkin의 elements 리스트에 있는 모든 Renderer에 Material 적용
-        if (snakeSkinComponent._elements != null && snakeSkinComponent._elements.Length > 0)
+        // 1. Snake Head에 스킨 적용
+        ApplyMaterialToComponent(_snake?.Head?.gameObject);
+
+        // 2. 이미 존재하는 모든 몸통 세그먼트에 스킨 적용
+        if (_snakeBodyHandler != null && _snakeBodyHandler._bodySegments != null)
         {
+            int segmentCount = _snakeBodyHandler.GetBodySegmentCount();
             int appliedCount = 0;
-            foreach (Renderer renderer in snakeSkinComponent._elements)
+
+            foreach (var segment in _snakeBodyHandler._bodySegments)
             {
-                if (renderer != null)
+                if (segment != null)
                 {
-                    // Material 직접 교체 (주의: Material 인스턴스가 생성될 수 있음)
-                    renderer.material = targetMaterial;
-                    appliedCount++;
-                }
-                else
-                {
-                    Debug.LogWarning($"[{GetType().Name} ID:{NetworkObjectId}] SnakeSkin의 elements 리스트에 null인 Renderer가 포함되어 있습니다.");
+                    if (ApplyMaterialToComponent(segment.gameObject))
+                    {
+                        appliedCount++;
+                    }
                 }
             }
-            Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] 스킨 Material '{targetMaterial.name}' (인덱스 {skinIndex})을 {appliedCount}개의 Renderer에 적용했습니다.");
+
+            if (segmentCount > 0)
+            {
+                Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] 총 {appliedCount}/{segmentCount} 바디 세그먼트에 스킨 적용 완료");
+            }
         }
-        else
+    }
+
+    /// <summary>
+    /// 지정된 게임 오브젝트에 스킨을 적용합니다 (SnakeSkin 컴포넌트 필요)
+    /// </summary>
+    /// <param name="targetObject">스킨을 적용할 게임 오브젝트</param>
+    /// <returns>스킨 적용 성공 여부</returns>
+    private bool ApplyMaterialToComponent(GameObject targetObject)
+    {
+        if (targetObject == null || targetMaterial == null)
         {
-            Debug.LogWarning($"[{GetType().Name} ID:{NetworkObjectId}] SnakeSkin 컴포넌트의 elements 리스트가 비어있거나 null입니다.");
+            return false;
+        }
+
+        SnakeSkin skinComponent = targetObject.GetComponent<SnakeSkin>();
+        if (skinComponent == null)
+        {
+            Debug.LogWarning($"[{GetType().Name} ID:{NetworkObjectId}] 게임 오브젝트 {targetObject.name}에서 SnakeSkin 컴포넌트를 찾을 수 없습니다.");
+            return false;
+        }
+
+        try
+        {
+            // ChangeTo 메소드를 사용하여 스킨 적용
+            skinComponent.ChangeTo(targetMaterial);
+            return true;
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[{GetType().Name} ID:{NetworkObjectId}] 스킨 적용 중 오류 발생: {ex.Message}");
+            return false;
         }
     }
 

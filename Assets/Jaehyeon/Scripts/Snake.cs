@@ -136,51 +136,98 @@ public class Snake : BaseObject
     }
 
     // 감지된 충돌 처리 (Owner에서 실행됨)
-    private void ProcessCollision(Component target)
+    private void ProcessCollision(Component targetComponent)
     {
         // 소유자가 아니면 처리하지 않음
         if (!IsOwner) return;
         
+        // GameObject 참조 확보
+        GameObject target = targetComponent.gameObject;
+        if (target == null) return;
+        
         // PlayerSnakeController 참조가 없으면 가져오기 시도
         if (_playerSnakeController == null)
         {
-             _playerSnakeController = GetComponentInParent<PlayerSnakeController>();
-             if (_playerSnakeController == null)
-             {
-                 Debug.LogError($"[{GetType().Name}] PlayerSnakeController 참조를 찾을 수 없습니다!");
-                 return;
-             }
+            _playerSnakeController = GetComponentInParent<PlayerSnakeController>();
+            if (_playerSnakeController == null)
+            {
+                Debug.LogError($"[{GetType().Name}] PlayerSnakeController 참조를 찾을 수 없습니다!");
+                return;
+            }
         }
 
-        // Apple 컴포넌트를 가진 음식 처리 (Apple, Candy 등 모두 Apple 컴포넌트 사용)
-        if (target.TryGetComponent(out Apple food))
+        // 음식 타입 확인 (이름 기반)
+        string targetName = target.name;
+        bool isApple = targetName.Contains("Apple");
+        bool isCandy = targetName.Contains("Candy");
+        
+        // Apple, Candy 또는 다른 음식 아이템인지 확인
+        if (isApple || isCandy)
         {
-            string foodName = target.name;
-            bool isCandy = foodName.Contains("Candy");
-            string foodType = isCandy ? "Candy" : "Apple";
+            string foodType = isApple ? "Apple" : "Candy";
+            Debug.Log($"[{GetType().Name}] {foodType} 충돌 감지: {targetName}");
             
-            Debug.Log($"[{GetType().Name} Owner] {foodType} 충돌 감지: {foodName}");
-            
-            // 음식의 값 가져오기 - Candy는 값을 음수로 변환
-            int foodValue = isCandy ? -Mathf.Abs(food.ValueIncrement) : food.ValueIncrement;
+            // BaseObject 컴포넌트를 통해 공통 기능 접근
+            var baseObject = target.GetComponent<BaseObject>();
+            if (baseObject == null)
+            {
+                Debug.LogError($"[{GetType().Name}] {foodType}에서 BaseObject 컴포넌트를 찾을 수 없습니다!");
+                return;
+            }
             
             // NetworkObject 컴포넌트 확인
-            if (food.TryGetComponent<NetworkObject>(out var foodNetObj))
-            {    
-                ulong foodNetworkId = foodNetObj.NetworkObjectId;
-                
-                // 서버에 음식 먹었음을 알림 (통합된 메소드 사용)
-                _playerSnakeController.NotifyFoodEatenServerRpc(foodValue, foodNetworkId);
-                
-                // 로컬에서 음식을 임시로 비활성화 (시각적 피드백을 위해)
-                food.gameObject.SetActive(false);
-                
-                Debug.Log($"[{GetType().Name} Owner] {foodType} 처리 완료: Value={foodValue}, NetworkID={foodNetworkId}");
-            }
-            else
+            NetworkObject foodNetObj = target.GetComponent<NetworkObject>();
+            if (foodNetObj == null)
             {
-                Debug.LogError($"[{GetType().Name}] 충돌한 {foodType}에서 NetworkObject 컴포넌트를 찾을 수 없습니다!");
+                Debug.LogError($"[{GetType().Name}] {foodType}에서 NetworkObject 컴포넌트를 찾을 수 없습니다!");
+                return;
             }
+            
+            // 음식 값 결정 (Apple: 양수, Candy: 음수)
+            int foodValue;
+            
+            // 타입별로 적절한 값 추출
+            if (isApple)
+            {
+                // Apple에서 ValueIncrement 값 얻기 (리플렉션 사용)
+                var appleType = baseObject.GetType();
+                var valueProperty = appleType.GetProperty("ValueIncrement");
+                
+                if (valueProperty != null)
+                {
+                    foodValue = (int)valueProperty.GetValue(baseObject);
+                }
+                else
+                {
+                    Debug.LogWarning($"[{GetType().Name}] Apple에서 ValueIncrement 속성을 찾을 수 없습니다. 기본값 1 사용");
+                    foodValue = 1; // 기본값
+                }
+            }
+            else // isCandy
+            {
+                // Candy에서 ValueDecrement 값 얻기 (리플렉션 사용)
+                var candyType = baseObject.GetType();
+                var valueProperty = candyType.GetProperty("ValueDecrement");
+                
+                if (valueProperty != null)
+                {
+                    // Candy는 음수값으로 적용
+                    foodValue = -((int)valueProperty.GetValue(baseObject));
+                }
+                else
+                {
+                    Debug.LogWarning($"[{GetType().Name}] Candy에서 ValueDecrement 속성을 찾을 수 없습니다. 기본값 -2 사용");
+                    foodValue = -2; // 기본값
+                }
+            }
+            
+            // 서버에 음식 먹었음을 알림
+            _playerSnakeController.NotifyFoodEatenServerRpc(foodValue, foodNetObj.NetworkObjectId);
+            
+            // 로컬에서 음식을 임시로 비활성화 (시각적 피드백을 위해)
+            target.SetActive(false);
+            
+            Debug.Log($"[{GetType().Name}] {foodType} 처리 완료: Value={foodValue}, NetworkID={foodNetObj.NetworkObjectId}");
         }
     }
 
