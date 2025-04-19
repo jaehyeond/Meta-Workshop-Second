@@ -889,23 +889,46 @@ public class PlayerSnakeController : NetworkBehaviour
         
         try
         {
-            // 속도 증가 처리
+            // 1. 속도 증가 처리 (Beef 고유 효과)
             const float SPEED_INCREMENT = 0.5f;
             const float MAX_SPEED = 10.0f;
             
-            // 현재 속도와 새 속도 계산
             float currentSpeed = NetworkSnakeSpeed.Value;
             float newSpeed = Mathf.Min(currentSpeed + SPEED_INCREMENT, MAX_SPEED);
-            
-            // NetworkVariable 값 변경 (자동으로 모든 클라이언트에 동기화됨)
             NetworkSnakeSpeed.Value = newSpeed;
             
             Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 속도 증가: {currentSpeed} → {newSpeed}");
             
-            // Beef 오브젝트 제거
-            DespawnFoodObject(beefNetworkId, "Beef");
+            // 2. 점수 및 헤드 값 처리 (Apple과 유사한 방식)
+            const int BEEF_VALUE = 4; // Beef는 +4 값을 가짐
             
-            // 새 음식 생성
+            // 현재 값 저장
+            int oldHeadValue = _snake._networkHeadValue.Value;
+            int oldScore = _networkScore.Value;
+            int segmentCount = _snakeBodyHandler.GetBodySegmentCount();
+            
+            Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 현재 상태: 헤드값={oldHeadValue}, 점수={oldScore}, 세그먼트수={segmentCount}");
+            
+            // 점수와 헤드 값 업데이트
+            _networkScore.Value += BEEF_VALUE;
+            _snake._networkHeadValue.Value += BEEF_VALUE;
+            
+            // 변경 후 값
+            int newHeadValue = _snake._networkHeadValue.Value;
+            int newScore = _networkScore.Value;
+            
+            Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 적용 후 상태: 헤드값={newHeadValue}, 점수={newScore}");
+            
+            // 3. 세그먼트 추가 로직 (점수 4점 단위로)
+            if (newScore >= 8 && (newScore / 4 > oldScore / 4))
+            {
+                Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 점수 4점 단위 증가: {oldScore}→{newScore}, 새 세그먼트 추가");
+                AddBodySegmentOnServer();
+                UpdateBodyValuesOnServer(newHeadValue);
+            }
+            
+            // 4. Beef 오브젝트 제거 및 새 음식 생성
+            DespawnFoodObject(beefNetworkId, "Beef");
             SpawnNewRandomFood();
         }
         catch (System.Exception ex)
