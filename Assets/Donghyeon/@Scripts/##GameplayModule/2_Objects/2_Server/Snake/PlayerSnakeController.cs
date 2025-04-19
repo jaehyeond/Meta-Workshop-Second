@@ -234,52 +234,225 @@ public class PlayerSnakeController : NetworkBehaviour
     }
 
     [ServerRpc]
-    public void NotifyAppleEatenServerRpc(int appleValue, ulong appleNetworkId)
+    public void NotifyFoodEatenServerRpc(int foodValue, ulong foodNetworkId)
     {
-        // 이 RPC는 소유자 클라이언트가 호출
-        Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] NotifyAppleEatenServerRpc 수신: Value=+{appleValue}, AppleID={appleNetworkId}");
+        // 음식 타입 확인 (양수: Apple, 음수: Candy)
+        string foodType = foodValue > 0 ? "Apple" : "Candy";
+        Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] NotifyFoodEatenServerRpc 수신: Value={foodValue}, FoodID={foodNetworkId}, Type={foodType}");
         
-        _networkScore.Value += appleValue; 
-        _snake._networkHeadValue.Value += appleValue; // Snake의 _networkHeadValue 사용
+        // 현재 값 저장
+        int oldHeadValue = _snake._networkHeadValue.Value;
+        int oldScore = _networkScore.Value;
+        int segmentCount = _snakeBodyHandler.GetBodySegmentCount();
+        
+        Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 현재 상태: 헤드값={oldHeadValue}, 점수={oldScore}, 세그먼트수={segmentCount}");
+        
+        // Candy 처리 - 몸통이 없는 경우 적용하지 않음
+        if (foodValue < 0 && segmentCount <= 0)
+        {
+            Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] Candy 효과 무시: 몸통이 없어 적용되지 않음");
+            // 음식 오브젝트만 제거하고 끝냄
+            DespawnFoodObject(foodNetworkId, foodType);
+            return;
+        }
+        
+        // 점수와 헤드 값 업데이트
+        _networkScore.Value += foodValue;
+        _snake._networkHeadValue.Value += foodValue;
+        
+        // 변경 후 값
+        int newHeadValue = _snake._networkHeadValue.Value;
+        int newScore = _networkScore.Value;
+        
+        // 최소값 보호 (2 미만으로 내려가지 않도록)
+        if (newHeadValue < 2)
+        {
+            newHeadValue = 2;
+            _snake._networkHeadValue.Value = 2;
+            newScore = 2;
+            _networkScore.Value = 2;
+            Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 헤드 값이 최소값(2)보다 작아져 2로 조정됨");
+        }
+        
+        Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 적용 후 상태: 헤드값={newHeadValue}, 점수={newScore}");
+        
+        if (foodValue > 0) // Apple 처리 (+2 또는 +4)
+        {
+            // 매 4점마다 몸통 세그먼트 추가
+            // 예: 2→4→6→8(+세그먼트)→10→12→14→16(+세그먼트)
+            if (newScore >= 8 && (newScore / 4 > oldScore / 4))
+            {
+                Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 점수 4점 단위 증가: {oldScore}→{newScore}, 새 세그먼트 추가");
+                AddBodySegmentOnServer();
+                UpdateBodyValuesOnServer(newHeadValue);
+            }
+        }
+        else if (foodValue < 0) // Candy 처리 (-4)
+        {
+            // Candy가 -4 값이라면 즉시 세그먼트 하나 제거
+            if (segmentCount > 0)
+            {
+                Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] Candy 먹음: 세그먼트 하나 제거 (남은 세그먼트: {segmentCount-1})");
+                RemoveLastBodySegmentOnServer();
+            }
+            else
+            {
+                Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] Candy 먹음: 제거할 세그먼트 없음");
+            }
+        }
+        
+        // 음식 오브젝트 제거
+        DespawnFoodObject(foodNetworkId, foodType);
+        
+        // 새 음식 생성
+        SpawnNewRandomFood();
+    }
+    
+    /// <summary>
+    /// 음식 오브젝트 디스폰 처리
+    /// </summary>
+    private void DespawnFoodObject(ulong foodNetworkId, string foodType)
+    {
         try 
         {
             if (IsHost || IsServer)
             {
-                if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(appleNetworkId, out NetworkObject appleNetObj))
+                if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(foodNetworkId, out NetworkObject foodNetObj))
                 {
-                    if (appleNetObj.TryGetComponent<Apple>(out var apple))
+                    if (foodNetObj != null)
                     {
-                        Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 서버에서 사과 제거: AppleID={appleNetworkId}");
-                        _objectManager.Despawn(apple);
+                        Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 서버에서 {foodType} 제거: FoodID={foodNetworkId}");
+                        _objectManager.Despawn(foodNetObj.GetComponent<BaseObject>());
                     }
                 }
             }
         }
         catch (System.Exception ex)
         {
-            Debug.LogError($"[{GetType().Name} Server ID:{NetworkObjectId}] 사과 제거 중 오류: {ex.Message}");
+            Debug.LogError($"[{GetType().Name} Server ID:{NetworkObjectId}] {foodType} 제거 중 오류: {ex.Message}");
         }
-        
+    }
+    
+    /// <summary>
+    /// 새로운 랜덤 음식 생성
+    /// </summary>
+    private void SpawnNewRandomFood()
+    {
         try
         {
             Vector3 randomPosition = Util.GetRandomPosition();
             randomPosition.y = 0f;
-            var newApple = _objectManager.Spawn<BaseObject>(randomPosition, Quaternion.identity, prefabName: "Apple");
-            Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 새 사과 생성됨: 위치={randomPosition}");
+            
+            // AppleManager 사용하여 음식 생성
+            var appleManager = GameObject.FindObjectOfType<AppleManager>();
+            if (appleManager != null)
+            {
+                appleManager.SpawnApple();  // 이 메소드는 AppleManager의 SpawnablePrefabNames에서 랜덤으로 하나 선택함
+                Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] AppleManager를 통해 새 음식 생성 요청됨");
+            }
+            else
+            {
+                // AppleManager가 없다면 직접 생성
+                string[] foodPrefabs = {"Apple", "Beer", "Beef", "Candy"};
+                string randomFood = foodPrefabs[UnityEngine.Random.Range(0, foodPrefabs.Length)];
+                var newFood = _objectManager.Spawn<BaseObject>(randomPosition, Quaternion.identity, prefabName: randomFood);
+                Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 새 {randomFood} 직접 생성됨: 위치={randomPosition}");
+            }
         }
         catch (System.Exception ex)
         {
-            Debug.LogError($"[{GetType().Name} Server ID:{NetworkObjectId}] 새 사과 생성 중 오류: {ex.Message}");
+            Debug.LogError($"[{GetType().Name} Server ID:{NetworkObjectId}] 새 음식 생성 중 오류: {ex.Message}");
         }
     }
 
-
-    [ServerRpc]
-    public void NotifyHeadValueChangedServerRpc(int previousValue, int newValue)
+    /// <summary>
+    /// 마지막 바디 세그먼트 제거 (서버 전용 로직)
+    /// </summary>
+    private void RemoveLastBodySegmentOnServer()
     {
-         Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] NotifyHeadValueChangedServerRpc 수신: {previousValue} -> {newValue}");
-        AddBodySegmentOnServer();
-        UpdateBodyValuesOnServer(newValue);
+        if (_snakeBodyHandler == null)
+        {
+            Debug.LogError($"[{GetType().Name} Server ID:{NetworkObjectId}] SnakeBodyHandler가 null입니다!");
+            return;
+        }
+        
+        int segmentCount = _snakeBodyHandler.GetBodySegmentCount();
+        if (segmentCount <= 0)
+        {
+            Debug.LogWarning($"[{GetType().Name} Server ID:{NetworkObjectId}] 제거할 세그먼트가 없습니다. 현재 세그먼트 수: {segmentCount}");
+            return;
+        }
+        
+        Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 마지막 세그먼트 제거 시작. 현재 세그먼트 수: {segmentCount}");
+        
+        // 마지막 세그먼트 가져오기
+        BaseObject lastSegment = _snakeBodyHandler.GetLastSegment();
+        if (lastSegment == null)
+        {
+            Debug.LogError($"[{GetType().Name} Server ID:{NetworkObjectId}] 마지막 세그먼트를 가져오지 못했습니다!");
+            return;
+        }
+        
+        // NetworkObject 컴포넌트 가져오기
+        NetworkObject networkObject = lastSegment.GetComponent<NetworkObject>();
+        if (networkObject == null)
+        {
+            Debug.LogError($"[{GetType().Name} Server ID:{NetworkObjectId}] 세그먼트에 NetworkObject 컴포넌트가 없습니다!");
+            return;
+        }
+        
+        // 세그먼트 NetworkObjectId 저장
+        ulong segmentNetworkId = networkObject.NetworkObjectId;
+        
+        try
+        {
+            // 서버에서 세그먼트 제거
+            _snakeBodyHandler.RemoveLastSegment();
+            
+            // 클라이언트에 세그먼트 제거 알림
+            NotifySegmentRemovedClientRpc(segmentNetworkId);
+            
+            // 네트워크 객체 디스폰
+            networkObject.Despawn();
+            
+            Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 세그먼트 제거 완료: NetworkObjectId={segmentNetworkId}, 남은 세그먼트: {_snakeBodyHandler.GetBodySegmentCount()}");
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[{GetType().Name} Server ID:{NetworkObjectId}] 세그먼트 제거 중 오류 발생: {ex.Message}\n{ex.StackTrace}");
+        }
+    }
+
+    [ClientRpc]
+    private void NotifySegmentRemovedClientRpc(ulong segmentNetworkId)
+    {
+        // 서버가 아닌 경우에만 처리 (클라이언트에서 실행)
+        if (IsServer) return;
+        
+        Debug.Log($"[{GetType().Name} Client ID:{NetworkObjectId}] 세그먼트 제거 알림 수신: SegmentID={segmentNetworkId}");
+        
+        // SnakeBodyHandler 확인
+        if (_snakeBodyHandler == null)
+        {
+            Debug.LogError($"[{GetType().Name} Client ID:{NetworkObjectId}] SnakeBodyHandler가 null입니다!");
+            return;
+        }
+        
+        // 현재 세그먼트 수 기록
+        int beforeCount = _snakeBodyHandler.GetBodySegmentCount();
+        
+        // 클라이언트에서 세그먼트 목록 업데이트
+        try
+        {
+            _snakeBodyHandler.RemoveLastSegment();
+            int afterCount = _snakeBodyHandler.GetBodySegmentCount();
+            
+            Debug.Log($"[{GetType().Name} Client ID:{NetworkObjectId}] 클라이언트에서 세그먼트 제거 완료: {beforeCount} → {afterCount}");
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[{GetType().Name} Client ID:{NetworkObjectId}] 클라이언트에서 세그먼트 제거 중 오류: {ex.Message}");
+        }
     }
 
     #region Movement and Body Management
@@ -604,4 +777,20 @@ public class PlayerSnakeController : NetworkBehaviour
 
     #endregion
 
+    [ServerRpc]
+    public void NotifyHeadValueChangedServerRpc(int previousValue, int newValue)
+    {
+        Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] NotifyHeadValueChangedServerRpc 수신: {previousValue} -> {newValue}");
+        
+        // 4점 단위로 세그먼트 추가 여부 결정
+        int oldSegments = previousValue / 4;
+        int newSegments = newValue / 4;
+        
+        if (newSegments > oldSegments)
+        {
+            Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 점수 4점 단위 증가 감지, 세그먼트 추가");
+            AddBodySegmentOnServer();
+            UpdateBodyValuesOnServer(newValue);
+        }
+    }
 }

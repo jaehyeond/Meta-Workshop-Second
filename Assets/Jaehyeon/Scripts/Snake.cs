@@ -138,40 +138,48 @@ public class Snake : BaseObject
     // 감지된 충돌 처리 (Owner에서 실행됨)
     private void ProcessCollision(Component target)
     {
-        // PlayerSnakeController 참조가 없으면 가져오기 시도 (필요하다면 Awake나 OnNetworkSpawn에서 처리하는 것이 더 효율적일 수 있음)
+        // 소유자가 아니면 처리하지 않음
+        if (!IsOwner) return;
+        
+        // PlayerSnakeController 참조가 없으면 가져오기 시도
         if (_playerSnakeController == null)
         {
-             PlayerSnakeController controller = FindObjectOfType<PlayerSnakeController>();
-             _playerSnakeController = controller;
+             _playerSnakeController = GetComponentInParent<PlayerSnakeController>();
+             if (_playerSnakeController == null)
+             {
+                 Debug.LogError($"[{GetType().Name}] PlayerSnakeController 참조를 찾을 수 없습니다!");
+                 return;
+             }
         }
 
-        if (target.TryGetComponent(out Apple apple))
+        // Apple 컴포넌트를 가진 음식 처리 (Apple, Candy 등 모두 Apple 컴포넌트 사용)
+        if (target.TryGetComponent(out Apple food))
         {
-            Debug.Log($"[{GetType().Name} Owner] Apple 충돌 감지. 서버에 알림 전송.");
-            if (_playerSnakeController != null && apple != null)
-            {
-                // 1번째 인자: 사과의 값 (int)
-                int appleValue = apple.ValueIncrement;
+            string foodName = target.name;
+            bool isCandy = foodName.Contains("Candy");
+            string foodType = isCandy ? "Candy" : "Apple";
+            
+            Debug.Log($"[{GetType().Name} Owner] {foodType} 충돌 감지: {foodName}");
+            
+            // 음식의 값 가져오기 - Candy는 값을 음수로 변환
+            int foodValue = isCandy ? -Mathf.Abs(food.ValueIncrement) : food.ValueIncrement;
+            
+            // NetworkObject 컴포넌트 확인
+            if (food.TryGetComponent<NetworkObject>(out var foodNetObj))
+            {    
+                ulong foodNetworkId = foodNetObj.NetworkObjectId;
                 
-                // 2번째 인자: 사과의 NetworkObjectId (ulong)
-                if (apple.TryGetComponent<NetworkObject>(out var appleNetObj))
-                {    
-                    ulong appleNetworkId = appleNetObj.NetworkObjectId;
-                    
-                    // 서버에 사과 먹었음을 알림 (사과 값과 NetworkObjectId 포함)
-                    _playerSnakeController.NotifyAppleEatenServerRpc(appleValue, appleNetworkId);
-                    
-                    // 로컬에서 사과를 임시로 비활성화 (시각적 피드백을 위해)
-                    apple.gameObject.SetActive(false);
-                }
-                else
-                {
-                    Debug.LogError($"[{GetType().Name}] 충돌한 사과에서 NetworkObject 컴포넌트를 찾을 수 없습니다!");
-                }
+                // 서버에 음식 먹었음을 알림 (통합된 메소드 사용)
+                _playerSnakeController.NotifyFoodEatenServerRpc(foodValue, foodNetworkId);
+                
+                // 로컬에서 음식을 임시로 비활성화 (시각적 피드백을 위해)
+                food.gameObject.SetActive(false);
+                
+                Debug.Log($"[{GetType().Name} Owner] {foodType} 처리 완료: Value={foodValue}, NetworkID={foodNetworkId}");
             }
             else
             {
-                Debug.LogError($"[{GetType().Name}] PlayerSnakeController 또는 충돌한 Apple이 null입니다!");
+                Debug.LogError($"[{GetType().Name}] 충돌한 {foodType}에서 NetworkObject 컴포넌트를 찾을 수 없습니다!");
             }
         }
     }

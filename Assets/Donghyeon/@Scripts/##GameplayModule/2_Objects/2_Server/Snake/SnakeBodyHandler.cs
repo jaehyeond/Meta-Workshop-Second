@@ -183,4 +183,30 @@ public class SnakeBodyHandler : MonoBehaviour
     {
         return _bodySegments.Count;
     }
+
+    /// <summary>
+    /// 마지막 바디 세그먼트를 제거합니다.
+    /// </summary>
+    public void RemoveLastSegment()
+    {
+        if (_bodySegments.Count <= 0) return;
+        
+        int lastIndex = _bodySegments.Count - 1;
+        
+        // 리스트에서 제거
+        _bodySegments.RemoveAt(lastIndex);
+        
+        // 컴포넌트 및 속도 목록 동기화
+        if (_bodySegmentComponents.Count > lastIndex)
+        {
+            _bodySegmentComponents.RemoveAt(lastIndex);
+        }
+        
+        if (_segmentVelocities.Count > lastIndex)
+        {
+            _segmentVelocities.RemoveAt(lastIndex);
+        }
+        
+        Debug.Log($"[{GetType().Name}] 마지막 세그먼트 제거됨. 남은 세그먼트 수: {_bodySegments.Count}");
+    }
 } 

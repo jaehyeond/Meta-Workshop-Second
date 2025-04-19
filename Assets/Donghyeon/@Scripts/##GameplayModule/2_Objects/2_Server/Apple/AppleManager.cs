@@ -30,6 +30,13 @@ public class AppleManager : MonoBehaviour
         }
     }
 
+    public void SpawnApple()
+    {
+        // 프리팹 목록에서 랜덤하게 하나를 선택하여 스폰
+        string randomPrefab = _spawnablePrefabNames[Random.Range(0, _spawnablePrefabNames.Length)];
+        SpawnObject(randomPrefab);
+    }
+
     public void SpawnObject(string prefabName)
     {
         Debug.Log($"[{GetType().Name}] Spawning {prefabName}...");
