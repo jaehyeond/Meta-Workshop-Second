@@ -101,7 +101,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
-  _valueIncrement: 1
+  _valueIncrement: -4
   _rotationSpeed: 30
   _rotationAxis: {x: 0, y: 1, z: 0}
 --- !u!65 &101720014271604382
