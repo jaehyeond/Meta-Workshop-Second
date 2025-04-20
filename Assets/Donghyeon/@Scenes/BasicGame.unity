@@ -380,7 +380,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Score
+  m_text: 
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -629,11 +629,13 @@ MonoBehaviour:
   scoreboardTitle: {fileID: 1528486900}
   playerScoreTextPrefab: {fileID: 86569098}
   playerScoreContainer: {fileID: 1830615972}
-  titleFormat: SCOREBOARD
+  titleFormat: SCORE
   playerScoreFormat: '{0}: {1}'
   positiveScoreColor: {r: 0, g: 1, b: 0, a: 1}
   negativeScoreColor: {r: 1, g: 0, b: 0, a: 1}
   neutralScoreColor: {r: 1, g: 1, b: 1, a: 1}
+  verticalSpacing: 30
+  initialOffset: 40
 --- !u!1 &2039317620
 GameObject:
   m_ObjectHideFlags: 0
