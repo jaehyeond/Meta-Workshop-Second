@@ -161,11 +161,12 @@ public class Snake : BaseObject
         bool isApple = targetName.Contains("Apple");
         bool isCandy = targetName.Contains("Candy");
         bool isBeef = targetName.Contains("Beef");
+        bool isBeer = targetName.Contains("Beer");
         
-        // Apple, Candy, Beef 또는 다른 음식 아이템인지 확인
-        if (isApple || isCandy || isBeef)
+        // Apple, Candy, Beef, Beer 또는 다른 음식 아이템인지 확인
+        if (isApple || isCandy || isBeef || isBeer)
         {
-            string foodType = isApple ? "Apple" : (isCandy ? "Candy" : "Beef");
+            string foodType = isApple ? "Apple" : (isCandy ? "Candy" : (isBeef ? "Beef" : "Beer"));
             Debug.Log($"[{GetType().Name}] {foodType} 충돌 감지: {targetName}");
             
             // BaseObject 컴포넌트를 통해 공통 기능 접근
@@ -197,7 +198,7 @@ public class Snake : BaseObject
                 return; // 여기서 종료
             }
             
-            // 음식 값 결정 (Apple: 양수, Candy: 음수)
+            // 음식 값 결정 (Apple: 양수, Candy 및 Beer: 음수)
             int foodValue;
             
             // 타입별로 적절한 값 추출
@@ -217,7 +218,7 @@ public class Snake : BaseObject
                     foodValue = 1; // 기본값
                 }
             }
-            else // isCandy
+            else if (isCandy) // Candy 처리
             {
                 // Candy에서 ValueDecrement 값 얻기 (리플렉션 사용)
                 var candyType = baseObject.GetType();
@@ -233,6 +234,12 @@ public class Snake : BaseObject
                     Debug.LogWarning($"[{GetType().Name}] Candy에서 ValueDecrement 속성을 찾을 수 없습니다. 기본값 -2 사용");
                     foodValue = -2; // 기본값
                 }
+            }
+            else // Beer 처리 (Candy와 동일하게 처리)
+            {
+                // Beer는 Candy와 동일하게 처리 - 고정 음수 값 적용
+                foodValue = -4; // Beer에 고정 값 -4 적용 (세그먼트 제거를 위한 값)
+                Debug.Log($"[{GetType().Name}] Beer 감지: 고정 값 {foodValue} 적용");
             }
             
             // 서버에 음식 먹었음을 알림
