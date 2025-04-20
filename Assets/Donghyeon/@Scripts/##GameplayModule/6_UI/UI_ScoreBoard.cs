@@ -23,11 +23,12 @@ public class UI_ScoreBoard : MonoBehaviour
     [SerializeField] private Color neutralScoreColor = Color.white;
     
     [Header("Layout Settings")]
-    [SerializeField] private float verticalSpacing = 30f;         // 플레이어 텍스트 사이의 수직 간격
-    [SerializeField] private float initialOffset = 40f;           // 제목과 첫 번째 플레이어 텍스트 사이의 간격
+    [SerializeField] private float verticalSpacing = 15f;         // 플레이어 텍스트 사이의 수직 간격 (줄임)
+    [SerializeField] private float initialOffset = 10f;           // 제목과 첫 번째 플레이어 텍스트 사이의 간격 (줄임)
     
     private BasicGameState _gameState;
     private Dictionary<ulong, TextMeshProUGUI> _playerTextElements = new Dictionary<ulong, TextMeshProUGUI>();
+    private Dictionary<ulong, Color> _playerColors = new Dictionary<ulong, Color>();  // 플레이어별 색상 저장
     
     [Inject]
     private void Construct(BasicGameState gameState)
@@ -99,6 +100,23 @@ public class UI_ScoreBoard : MonoBehaviour
         }
     }
     
+    // 플레이어 ID에 기반한 랜덤 색상 생성
+    private Color GenerateRandomColor(ulong clientId)
+    {
+        // 고정된 랜덤 시드 - 항상 동일한 clientId에 대해 동일한 색상 반환
+        System.Random random = new System.Random((int)clientId * 1000);
+        
+        // HSV 색상 공간에서 고채도, 고명도 색상 생성 (더 선명한 색상)
+        float h = (float)random.NextDouble(); // 0~1 사이 색상값
+        float s = 0.8f + (float)random.NextDouble() * 0.2f; // 0.8~1.0 사이 채도값
+        float v = 0.8f + (float)random.NextDouble() * 0.2f; // 0.8~1.0 사이 명도값
+        
+        // HSV에서 RGB로 변환
+        Color color = Color.HSVToRGB(h, s, v);
+        
+        return color;
+    }
+    
     private void UpdateScoreUI(ulong clientId, int newScore, string playerName)
     {
         Debug.Log($"[UI_ScoreBoard] UpdateScoreUI 호출됨: clientId={clientId}, newScore={newScore}, playerName={playerName}, 서버여부={NetworkManager.Singleton.IsServer}");
@@ -114,13 +132,11 @@ public class UI_ScoreBoard : MonoBehaviour
             // 기존 UI 요소 업데이트
             TextMeshProUGUI textElement = _playerTextElements[clientId];
             
-            // 점수에 따라 색상 설정
-            Color textColor = neutralScoreColor;
-            if (newScore > 0) textColor = positiveScoreColor;
-            else if (newScore < 0) textColor = negativeScoreColor;
+            // 플레이어 ID에 고유한 색상 적용 (이미 저장된 색상 사용)
+            Color playerColor = _playerColors.ContainsKey(clientId) ? _playerColors[clientId] : Color.white;
             
             textElement.text = string.Format(playerScoreFormat, playerName, newScore);
-            textElement.color = textColor;
+            textElement.color = playerColor;
             
             Debug.Log($"[UI_ScoreBoard] 점수 업데이트 완료: {playerName}({clientId}) -> {newScore}");
         }
@@ -139,10 +155,16 @@ public class UI_ScoreBoard : MonoBehaviour
         // 프리팹을 기반으로 새 텍스트 요소 생성
         TextMeshProUGUI newTextElement = Instantiate(playerScoreTextPrefab, playerScoreContainer);
         
-        // 점수에 따라 색상 설정
-        Color textColor = neutralScoreColor;
-        if (score > 0) textColor = positiveScoreColor;
-        else if (score < 0) textColor = negativeScoreColor;
+        // 플레이어 ID에 고유한 랜덤 색상 생성 및 저장
+        if (!_playerColors.ContainsKey(clientId))
+        {
+            Color playerColor = GenerateRandomColor(clientId);
+            _playerColors.Add(clientId, playerColor);
+            Debug.Log($"[UI_ScoreBoard] 플레이어 {playerName}({clientId})에 색상 할당: R={playerColor.r:F2}, G={playerColor.g:F2}, B={playerColor.b:F2}");
+        }
+        
+        // 저장된 플레이어 색상 사용
+        Color textColor = _playerColors[clientId];
         
         // 텍스트 및 색상 설정
         newTextElement.text = string.Format(playerScoreFormat, playerName, score);
@@ -152,7 +174,7 @@ public class UI_ScoreBoard : MonoBehaviour
         RectTransform rectTransform = newTextElement.GetComponent<RectTransform>();
         if (rectTransform != null)
         {
-            // 플레이어 텍스트 개수에 따라 위치 설정
+            // 플레이어 텍스트 개수에 따라 위치 설정 (간격 감소)
             float yPosition = -initialOffset - (_playerTextElements.Count * verticalSpacing);
             Vector3 localPosition = rectTransform.localPosition;
             localPosition.y = yPosition;
