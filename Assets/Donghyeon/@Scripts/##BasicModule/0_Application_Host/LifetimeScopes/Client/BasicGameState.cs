@@ -40,8 +40,8 @@ public class BasicGameState : GameStateLifetimeScope
     private Dictionary<string, int> _itemScoreValues = new Dictionary<string, int>() {
         {"Apple", 10},
         {"Candy", -5},
-        {"Beef", 50},
-        {"Beer", -50}
+        {"Beef", 30},
+        {"Beer", -30}
     };
     
     [Header("Game Settings")]
@@ -437,7 +437,20 @@ public class BasicGameState : GameStateLifetimeScope
         if (!_playerScores.ContainsKey(clientId))
             _playerScores[clientId] = 0;
             
-        _playerScores[clientId] += scoreValue;
+        // 현재 점수 저장
+        int currentScore = _playerScores[clientId];
+        
+        // 점수가 음수가 되지 않도록 제한
+        if (currentScore + scoreValue < 0)
+        {
+            _playerScores[clientId] = 0;
+            Debug.Log($"[BasicGameState] 플레이어 {clientId}의 점수가 0 미만이 되지 않도록 제한: {currentScore} + {scoreValue} -> 0");
+        }
+        else
+        {
+            _playerScores[clientId] += scoreValue;
+            Debug.Log($"[BasicGameState] 플레이어 {clientId}의 점수 업데이트: {currentScore} + {scoreValue} = {_playerScores[clientId]}");
+        }
         
         // 플레이어 이름 가져오기
         string playerName = $"Player{clientId+1}";

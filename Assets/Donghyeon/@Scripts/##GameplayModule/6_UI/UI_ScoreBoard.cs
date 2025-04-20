@@ -30,6 +30,18 @@ public class UI_ScoreBoard : MonoBehaviour
     private Dictionary<ulong, TextMeshProUGUI> _playerTextElements = new Dictionary<ulong, TextMeshProUGUI>();
     private Dictionary<ulong, Color> _playerColors = new Dictionary<ulong, Color>();  // 플레이어별 색상 저장
     
+    // 플레이어 점수 정보를 관리하기 위한 구조체
+    private struct PlayerScoreInfo
+    {
+        public ulong ClientId;
+        public string PlayerName;
+        public int Score;
+        public TextMeshProUGUI TextElement;
+    }
+    
+    // 플레이어 점수 정보를 담는 리스트
+    private List<PlayerScoreInfo> _playerScoreInfos = new List<PlayerScoreInfo>();
+    
     [Inject]
     private void Construct(BasicGameState gameState)
     {
@@ -138,8 +150,24 @@ public class UI_ScoreBoard : MonoBehaviour
             textElement.text = string.Format(playerScoreFormat, playerName, newScore);
             textElement.color = playerColor;
             
+            // 플레이어 점수 정보 업데이트
+            for (int i = 0; i < _playerScoreInfos.Count; i++)
+            {
+                if (_playerScoreInfos[i].ClientId == clientId)
+                {
+                    var info = _playerScoreInfos[i];
+                    info.Score = newScore;
+                    info.PlayerName = playerName;
+                    _playerScoreInfos[i] = info;
+                    break;
+                }
+            }
+            
             Debug.Log($"[UI_ScoreBoard] 점수 업데이트 완료: {playerName}({clientId}) -> {newScore}");
         }
+        
+        // 모든 플레이어 점수를 기준으로 순위 재정렬
+        UpdatePlayerRankings();
     }
     
     // 새 플레이어를 위한 점수 텍스트 생성
@@ -170,18 +198,30 @@ public class UI_ScoreBoard : MonoBehaviour
         newTextElement.text = string.Format(playerScoreFormat, playerName, score);
         newTextElement.color = textColor;
         
-        // 텍스트 요소의 위치를 조정하여 겹치지 않도록 함
+        // 텍스트 요소의 초기 위치 설정
         RectTransform rectTransform = newTextElement.GetComponent<RectTransform>();
         if (rectTransform != null)
         {
-            // 플레이어 텍스트 개수에 따라 위치 설정 (간격 감소)
-            float yPosition = -initialOffset - (_playerTextElements.Count * verticalSpacing);
+            // 초기 위치 설정 (정렬 전)
+            float yPosition = -initialOffset - (_playerScoreInfos.Count * verticalSpacing);
             Vector3 localPosition = rectTransform.localPosition;
             localPosition.y = yPosition;
             rectTransform.localPosition = localPosition;
             
-            Debug.Log($"[UI_ScoreBoard] 플레이어 텍스트 위치 설정: {playerName} -> y={yPosition}");
+            Debug.Log($"[UI_ScoreBoard] 플레이어 텍스트 초기 위치 설정: {playerName} -> y={yPosition}");
         }
+        
+        // 플레이어 정보 추가
+        PlayerScoreInfo playerInfo = new PlayerScoreInfo
+        {
+            ClientId = clientId,
+            PlayerName = playerName,
+            Score = score,
+            TextElement = newTextElement
+        };
+        
+        // 플레이어 점수 정보 리스트에 추가
+        _playerScoreInfos.Add(playerInfo);
         
         // 사전에 추가
         _playerTextElements.Add(clientId, newTextElement);
@@ -189,25 +229,26 @@ public class UI_ScoreBoard : MonoBehaviour
         Debug.Log($"[UI_ScoreBoard] 새 플레이어 추가: {playerName}({clientId}), 초기 점수: {score}");
     }
     
-    // 점수가 변경되면 전체 텍스트 위치 재정렬
-    private void RearrangeAllTextElements()
+    // 점수에 따라 플레이어 순위 업데이트
+    private void UpdatePlayerRankings()
     {
-        int index = 0;
-        foreach (var entry in _playerTextElements)
+        // 점수 내림차순으로 정렬 (높은 점수가 위에 표시)
+        _playerScoreInfos.Sort((a, b) => b.Score.CompareTo(a.Score));
+        
+        // 정렬된 순서에 따라 UI 위치 재배치
+        for (int i = 0; i < _playerScoreInfos.Count; i++)
         {
-            TextMeshProUGUI textElement = entry.Value;
-            RectTransform rectTransform = textElement.GetComponent<RectTransform>();
-            
+            RectTransform rectTransform = _playerScoreInfos[i].TextElement.GetComponent<RectTransform>();
             if (rectTransform != null)
             {
-                float yPosition = -initialOffset - (index * verticalSpacing);
+                float yPosition = -initialOffset - (i * verticalSpacing);
                 Vector3 localPosition = rectTransform.localPosition;
                 localPosition.y = yPosition;
                 rectTransform.localPosition = localPosition;
-                
-                index++;
             }
         }
+        
+        Debug.Log("[UI_ScoreBoard] 순위 재정렬 완료");
     }
     
     /// <summary>
@@ -216,10 +257,13 @@ public class UI_ScoreBoard : MonoBehaviour
     public string GetScoreboardText()
     {
         string result = titleFormat + "\n";
-        foreach (var entry in _playerTextElements)
+        
+        // 정렬된 플레이어 정보로 텍스트 생성
+        foreach (var playerInfo in _playerScoreInfos)
         {
-            result += entry.Value.text + "\n";
+            result += string.Format(playerScoreFormat, playerInfo.PlayerName, playerInfo.Score) + "\n";
         }
+        
         return result;
     }
     

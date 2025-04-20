@@ -253,8 +253,10 @@ public class PlayerSnakeController : NetworkBehaviour
     [ServerRpc]
     public void NotifyFoodEatenServerRpc(int foodValue, ulong foodNetworkId)
     {
-        // 음식 타입 확인 (양수: Apple, 음수: Candy)
-        string foodType = foodValue > 0 ? "Apple" : (foodValue == -4 ? "Beer" : "Candy");
+        // 음식 타입 확인 (양수: Apple/Beef, 음수: Candy/Beer)
+        string foodType = foodValue > 0 ? 
+                         (foodValue == 30 ? "Beef" : "Apple") : 
+                         (foodValue == -30 ? "Beer" : "Candy");
         Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] NotifyFoodEatenServerRpc 수신: Value={foodValue}, FoodID={foodNetworkId}, Type={foodType}");
         
         // 현재 값 저장
@@ -273,23 +275,35 @@ public class PlayerSnakeController : NetworkBehaviour
             return;
         }
         
-        // 점수와 헤드 값 업데이트
-        _networkScore.Value += foodValue;
-        _snake._networkHeadValue.Value += foodValue;
+        // 점수와 헤드 값 업데이트 (음수가 되지 않도록 제한)
+        int newHeadValue = Mathf.Max(2, oldHeadValue + foodValue);
+        int newScore = Mathf.Max(0, oldScore + foodValue);
         
-        // 변경 후 값
-        int newHeadValue = _snake._networkHeadValue.Value;
-        int newScore = _networkScore.Value;
-        
-        // 최소값 보호 (2 미만으로 내려가지 않도록)
-        if (newHeadValue < 2)
+        // 점수가 0 미만이 되지 않도록 보호
+        if (oldScore + foodValue < 0)
         {
-            newHeadValue = 2;
-            _snake._networkHeadValue.Value = 2;
-            newScore = 2;
-            _networkScore.Value = 2;
-            Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 헤드 값이 최소값(2)보다 작아져 2로 조정됨");
+            Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 점수가 0 미만이 되지 않도록 제한: {oldScore} + {foodValue} -> 0");
+            newScore = 0;
         }
+        else
+        {
+            Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 점수 업데이트: {oldScore} + {foodValue} = {newScore}");
+        }
+        
+        // 헤드 값이 2 미만이 되지 않도록 보호
+        if (oldHeadValue + foodValue < 2)
+        {
+            Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 헤드 값이 최소값(2)보다 작아져 2로 조정됨");
+            newHeadValue = 2;
+        }
+        else
+        {
+            Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 헤드 값 업데이트: {oldHeadValue} + {foodValue} = {newHeadValue}");
+        }
+        
+        // 최종 값 설정
+        _networkScore.Value = newScore;
+        _snake._networkHeadValue.Value = newHeadValue;
         
         Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 적용 후 상태: 헤드값={newHeadValue}, 점수={newScore}");
         
@@ -310,7 +324,7 @@ public class PlayerSnakeController : NetworkBehaviour
             Debug.LogWarning($"[{GetType().Name} Server ID:{NetworkObjectId}] BasicGameState를 찾을 수 없어 스코어보드 업데이트 불가");
         }
         
-        if (foodValue > 0) // Apple 처리 (+2 또는 +4)
+        if (foodValue > 0) // Apple 또는 Beef 처리 (+10 또는 +30)
         {
             // 매 4점마다 몸통 세그먼트 추가
             // 예: 2→4→6→8(+세그먼트)→10→12→14→16(+세그먼트)
@@ -321,9 +335,9 @@ public class PlayerSnakeController : NetworkBehaviour
                 UpdateBodyValuesOnServer(newHeadValue);
             }
         }
-        else if (foodValue < 0) // Candy 또는 Beer 처리 (-4)
+        else if (foodValue < 0) // Candy 또는 Beer 처리 (-5 또는 -30)
         {
-            // Candy/Beer가 -4 값이라면 즉시 세그먼트 하나 제거
+            // Candy/Beer는 즉시 세그먼트 하나 제거
             if (segmentCount > 0)
             {
                 Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] {foodType} 먹음: 세그먼트 하나 제거 (남은 세그먼트: {segmentCount-1})");
