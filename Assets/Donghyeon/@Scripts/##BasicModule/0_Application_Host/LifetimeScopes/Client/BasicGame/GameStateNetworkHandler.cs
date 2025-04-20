@@ -1,5 +1,6 @@
 using Unity.Netcode;
 using UnityEngine;
+using System.Collections.Generic;
 
 public class GameStateNetworkHandler : NetworkBehaviour
 {
@@ -50,6 +51,21 @@ public class GameStateNetworkHandler : NetworkBehaviour
     }
     
     /// <summary>
+    /// 점수 업데이트를 클라이언트에 전달
+    /// </summary>
+    [ClientRpc]
+    public void UpdateScoreClientRpc(ulong clientId, int newScore, string playerName)
+    {
+        if (!_isInitialized)
+        {
+            Debug.LogError("[GameStateNetworkHandler] 초기화되지 않은 상태에서 UpdateScoreClientRpc 호출됨");
+            return;
+        }
+        
+        _gameState.UpdateClientScore(clientId, newScore, playerName);
+    }
+    
+    /// <summary>
     /// 돈 업데이트를 클라이언트에 전달
     /// </summary>
     // [ClientRpc]
@@ -91,10 +107,26 @@ public class GameStateNetworkHandler : NetworkBehaviour
             return;
         }
         
-        _gameState.SyncClientInitialState(timer, wave, money, monsterCount, isBossWave);
+        // Dictionary가 네트워크 직렬화 불가능하므로 개별 전송 방식으로 변경
+        _gameState.SyncClientInitialState(timer, wave, money, monsterCount, isBossWave, 
+                                         new Dictionary<ulong, int>(), new Dictionary<ulong, string>());
+    }
+    
+    /// <summary>
+    /// 플레이어 점수 정보를 클라이언트에 전달
+    /// </summary>
+    [ClientRpc]
+    public void SyncPlayerScoreClientRpc(ulong clientId, int score, string playerName)
+    {
+        if (!_isInitialized)
+        {
+            Debug.LogError("[GameStateNetworkHandler] 초기화되지 않은 상태에서 SyncPlayerScoreClientRpc 호출됨");
+            return;
+        }
+        
+        _gameState.AddInitialPlayerScore(clientId, score, playerName);
     }
 
-// GameStateNetworkHandler.cs에 추가할 메서드
     [ClientRpc]
     public void SyncStateToClientRpc(float timer, int wave, int money, int monsterCount, bool isBossWave, ClientRpcParams clientRpcParams)
     {
@@ -104,6 +136,7 @@ public class GameStateNetworkHandler : NetworkBehaviour
             return;
         }
         
-        _gameState.SyncClientInitialState(timer, wave, money, monsterCount, isBossWave);
+        // 기존 메서드는 새로운 파라미터와 호환되지 않으므로 주석 처리
+        // _gameState.SyncClientInitialState(timer, wave, money, monsterCount, isBossWave);
     }
 }

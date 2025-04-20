@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using Unity.Netcode;
+using Unity.Collections;
 using UnityEngine;
 using static Define;
 using VContainer;
@@ -15,6 +16,7 @@ public delegate void OnMoneyUpEventHandler();
 public delegate void OnTimerUpEventHandler();
 public delegate void OnGameOverEventHandler();
 public delegate void OnWaveChangedEventHandler(bool isBossWave);
+public delegate void OnScoreUpdatedEventHandler(ulong clientId, int newScore, string playerName);
 
 /// <summary>
 /// 기본 게임 상태를 관리하는 클래스
@@ -33,6 +35,14 @@ public class BasicGameState : GameStateLifetimeScope
     [Header("Game State")]
     private float _timer = 180.0f;
 
+    [Header("Score System")]
+    private Dictionary<ulong, int> _playerScores = new Dictionary<ulong, int>();
+    private Dictionary<string, int> _itemScoreValues = new Dictionary<string, int>() {
+        {"Apple", 10},
+        {"Candy", -5},
+        {"Beef", 50},
+        {"Beer", -50}
+    };
     
     [Header("Game Settings")]
 
@@ -50,6 +60,23 @@ public class BasicGameState : GameStateLifetimeScope
     /// </summary>
     public float Timer => _timer;
     
+    /// <summary>
+    /// 플레이어의 현재 스코어를 반환
+    /// </summary>
+    public int GetPlayerScore(ulong clientId)
+    {
+        if (_playerScores.TryGetValue(clientId, out int score))
+            return score;
+        return 0;
+    }
+
+    /// <summary>
+    /// 모든 플레이어의 스코어 정보를 반환
+    /// </summary>
+    public Dictionary<ulong, int> GetAllPlayerScores()
+    {
+        return new Dictionary<ulong, int>(_playerScores);
+    }
 
     /// <summary>
     /// 현재 게임 상태
@@ -68,6 +95,9 @@ public class BasicGameState : GameStateLifetimeScope
     public event OnGameOverEventHandler OnGameOver;
 
     public event OnWaveChangedEventHandler OnWaveChanged;
+    
+    public event OnScoreUpdatedEventHandler OnScoreUpdated;
+    
     private SessionManager<SessionPlayerData> _sessionManager;
 
     #endregion
@@ -343,13 +373,36 @@ public class BasicGameState : GameStateLifetimeScope
     {
         if (_networkHandler == null) return;
         
-        // _networkHandler.SyncInitialStateClientRpc(
-        //     _timer,
-        //     _wave,
-        //     _money,
-        //     _monsterCount,
-        //     _isBossWave
-        // );
+        // 기본 게임 상태 동기화
+        _networkHandler.SyncInitialStateClientRpc(
+            _timer,
+            0, // wave
+            0, // money
+            0, // monsterCount
+            false // isBossWave
+        );
+        
+        // 각 플레이어의 점수 정보 개별 전송
+        foreach (var entry in _playerScores)
+        {
+            ulong clientId = entry.Key;
+            int score = entry.Value;
+            
+            // 플레이어 이름 가져오기
+            string playerName = $"Player{clientId+1}";
+            string playerId = _sessionManager.GetPlayerId(clientId);
+            if (!string.IsNullOrEmpty(playerId))
+            {
+                var playerData = _sessionManager.GetPlayerData(playerId);
+                if (playerData.HasValue)
+                    playerName = playerData.Value.PlayerName;
+            }
+            
+            // 각 플레이어 점수 정보 전송
+            _networkHandler.SyncPlayerScoreClientRpc(clientId, score, playerName);
+        }
+        
+        Debug.Log("[BasicGameState] 초기 상태 동기화 완료 (스코어 포함)");
     }
     
     #endregion
@@ -362,6 +415,68 @@ public class BasicGameState : GameStateLifetimeScope
     public void Load()
     {
         // 게임 리소스 로드 로직 구현
+    }
+    
+    /// <summary>
+    /// 아이템 획득에 따른 플레이어 점수 업데이트
+    /// </summary>
+    /// <param name="clientId">클라이언트 ID</param>
+    /// <param name="itemType">획득 아이템 타입</param>
+    public void UpdatePlayerScore(ulong clientId, string itemType)
+    {
+        if (!IsServerReady() || _networkHandler == null) return;
+        
+        // 아이템 점수값 확인
+        if (!_itemScoreValues.TryGetValue(itemType, out int scoreValue))
+        {
+            Debug.LogWarning($"[BasicGameState] 정의되지 않은 아이템 타입: {itemType}");
+            return;
+        }
+        
+        // 플레이어 스코어 초기화 및 업데이트
+        if (!_playerScores.ContainsKey(clientId))
+            _playerScores[clientId] = 0;
+            
+        _playerScores[clientId] += scoreValue;
+        
+        // 플레이어 이름 가져오기
+        string playerName = $"Player{clientId+1}";
+        string playerId = _sessionManager.GetPlayerId(clientId);
+        if (!string.IsNullOrEmpty(playerId))
+        {
+            var playerData = _sessionManager.GetPlayerData(playerId);
+            if (playerData.HasValue)
+                playerName = playerData.Value.PlayerName;
+        }
+        
+        // 모든 클라이언트에 동기화
+        _networkHandler.UpdateScoreClientRpc(clientId, _playerScores[clientId], playerName);
+        
+        // 호스트에서도 UI 이벤트 발생시키기 (중요 수정 사항)
+        if (_isServer)
+        {
+            OnScoreUpdated?.Invoke(clientId, _playerScores[clientId], playerName);
+            Debug.Log($"[BasicGameState] 호스트에서 직접 점수 UI 이벤트 발생: {playerName}({clientId}) 점수={_playerScores[clientId]}");
+        }
+        
+        Debug.Log($"[BasicGameState] 플레이어 {playerName}({clientId})의 점수 업데이트: {itemType}({scoreValue}), 현재 점수: {_playerScores[clientId]}");
+    }
+    
+    /// <summary>
+    /// 클라이언트에서 점수 업데이트를 처리
+    /// </summary>
+    public void UpdateClientScore(ulong clientId, int newScore, string playerName)
+    {
+        if (!_isServer) // 클라이언트만 값 업데이트
+        {
+            if (!_playerScores.ContainsKey(clientId))
+                _playerScores[clientId] = 0;
+                
+            _playerScores[clientId] = newScore;
+            OnScoreUpdated?.Invoke(clientId, newScore, playerName);
+            
+            Debug.Log($"[BasicGameState] 클라이언트: 플레이어 {playerName}({clientId})의 점수 업데이트됨: {newScore}");
+        }
     }
     
     /// <summary>
@@ -379,8 +494,6 @@ public class BasicGameState : GameStateLifetimeScope
             // Debug.Log($"[BasicGameState] 돈 추가: +{value}, 현재 돈: {_money}");
         }
     }
-    
-  
     
     /// <summary>
     /// 게임 오버 이벤트 발생
@@ -428,7 +541,7 @@ public class BasicGameState : GameStateLifetimeScope
     /// <summary>
     /// 클라이언트 초기 상태 동기화
     /// </summary>
-    public void SyncClientInitialState(float timer, int wave, int money, int monsterCount, bool isBossWave)
+    public void SyncClientInitialState(float timer, int wave, int money, int monsterCount, bool isBossWave, Dictionary<ulong, int> playerScores, Dictionary<ulong, string> playerNames)
     {
         if (!_isServer) // 클라이언트만 값 업데이트
         {
@@ -437,6 +550,16 @@ public class BasicGameState : GameStateLifetimeScope
             // _money = money;
             // _monsterCount = monsterCount;
             // _isBossWave = isBossWave;
+            
+            // 스코어 초기화
+            _playerScores = new Dictionary<ulong, int>(playerScores);
+            
+            // 모든 플레이어 스코어 이벤트 발생
+            foreach (var playerScore in _playerScores)
+            {
+                string playerName = playerNames.TryGetValue(playerScore.Key, out string name) ? name : $"Player{playerScore.Key+1}";
+                OnScoreUpdated?.Invoke(playerScore.Key, playerScore.Value, playerName);
+            }
             
             OnTimerUp?.Invoke();
             OnMoneyUp?.Invoke();
@@ -474,6 +597,20 @@ public class BasicGameState : GameStateLifetimeScope
     private bool IsServerReady()
     {
         return _isNetworkReady && _isServer;
+    }
+    
+    /// <summary>
+    /// 클라이언트에서 초기 플레이어 점수 추가
+    /// </summary>
+    public void AddInitialPlayerScore(ulong clientId, int score, string playerName)
+    {
+        if (!_isServer) // 클라이언트만 값 업데이트
+        {
+            _playerScores[clientId] = score;
+            OnScoreUpdated?.Invoke(clientId, score, playerName);
+            
+            Debug.Log($"[BasicGameState] 초기 스코어 설정: 플레이어 {playerName}({clientId})의 점수={score}");
+        }
     }
     
     #endregion

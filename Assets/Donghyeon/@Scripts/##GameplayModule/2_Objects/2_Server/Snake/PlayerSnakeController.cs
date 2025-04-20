@@ -254,7 +254,7 @@ public class PlayerSnakeController : NetworkBehaviour
     public void NotifyFoodEatenServerRpc(int foodValue, ulong foodNetworkId)
     {
         // 음식 타입 확인 (양수: Apple, 음수: Candy)
-        string foodType = foodValue > 0 ? "Apple" : "Candy";
+        string foodType = foodValue > 0 ? "Apple" : (foodValue == -4 ? "Beer" : "Candy");
         Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] NotifyFoodEatenServerRpc 수신: Value={foodValue}, FoodID={foodNetworkId}, Type={foodType}");
         
         // 현재 값 저장
@@ -264,10 +264,10 @@ public class PlayerSnakeController : NetworkBehaviour
         
         Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 현재 상태: 헤드값={oldHeadValue}, 점수={oldScore}, 세그먼트수={segmentCount}");
         
-        // Candy 처리 - 몸통이 없는 경우 적용하지 않음
+        // Candy/Beer 처리 - 몸통이 없는 경우 적용하지 않음
         if (foodValue < 0 && segmentCount <= 0)
         {
-            Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] Candy 효과 무시: 몸통이 없어 적용되지 않음");
+            Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] {foodType} 효과 무시: 몸통이 없어 적용되지 않음");
             // 음식 오브젝트만 제거하고 끝냄
             DespawnFoodObject(foodNetworkId, foodType);
             return;
@@ -293,6 +293,23 @@ public class PlayerSnakeController : NetworkBehaviour
         
         Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 적용 후 상태: 헤드값={newHeadValue}, 점수={newScore}");
         
+        // BasicGameState를 통해 스코어 업데이트 (스코어보드 동기화)
+        BasicGameState gameState = FindObjectOfType<BasicGameState>();
+        if (gameState != null)
+        {
+            // 로그 추가 - UpdatePlayerScore 호출 직전
+            Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] BasicGameState.UpdatePlayerScore 호출 직전: clientId={OwnerClientId}, foodType={foodType}");
+            
+            gameState.UpdatePlayerScore(OwnerClientId, foodType);
+            
+            // 로그 추가 - UpdatePlayerScore 호출 직후
+            Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] BasicGameState.UpdatePlayerScore 호출 완료");
+        }
+        else
+        {
+            Debug.LogWarning($"[{GetType().Name} Server ID:{NetworkObjectId}] BasicGameState를 찾을 수 없어 스코어보드 업데이트 불가");
+        }
+        
         if (foodValue > 0) // Apple 처리 (+2 또는 +4)
         {
             // 매 4점마다 몸통 세그먼트 추가
@@ -304,17 +321,17 @@ public class PlayerSnakeController : NetworkBehaviour
                 UpdateBodyValuesOnServer(newHeadValue);
             }
         }
-        else if (foodValue < 0) // Candy 처리 (-4)
+        else if (foodValue < 0) // Candy 또는 Beer 처리 (-4)
         {
-            // Candy가 -4 값이라면 즉시 세그먼트 하나 제거
+            // Candy/Beer가 -4 값이라면 즉시 세그먼트 하나 제거
             if (segmentCount > 0)
             {
-                Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] Candy 먹음: 세그먼트 하나 제거 (남은 세그먼트: {segmentCount-1})");
+                Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] {foodType} 먹음: 세그먼트 하나 제거 (남은 세그먼트: {segmentCount-1})");
                 RemoveLastBodySegmentOnServer();
             }
             else
             {
-                Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] Candy 먹음: 제거할 세그먼트 없음");
+                Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] {foodType} 먹음: 제거할 세그먼트 없음");
             }
         }
         
@@ -854,7 +871,7 @@ public class PlayerSnakeController : NetworkBehaviour
 
     #endregion
 
-    [ServerRpc]
+     [ServerRpc]
     public void NotifyHeadValueChangedServerRpc(int previousValue, int newValue)
     {
         Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] NotifyHeadValueChangedServerRpc 수신: {previousValue} -> {newValue}");
