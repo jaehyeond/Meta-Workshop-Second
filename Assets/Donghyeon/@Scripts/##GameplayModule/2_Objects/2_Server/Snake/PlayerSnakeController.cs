@@ -14,6 +14,43 @@ using UnityEngine.Rendering; // Visual Effect Graph 색상 변경을 위해 추�
 
 public class PlayerSnakeController : NetworkBehaviour
 {
+    // 세그먼트-스킨 매핑용 네트워크 직렬화 구조체
+    private struct SegmentSkinData : INetworkSerializable, IEquatable<SegmentSkinData>
+    {
+        public ulong SegmentId;
+        public int SkinIndex;
+        
+        public SegmentSkinData(ulong segmentId, int skinIndex)
+        {
+            SegmentId = segmentId;
+            SkinIndex = skinIndex;
+        }
+        
+        public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
+        {
+            serializer.SerializeValue(ref SegmentId);
+            serializer.SerializeValue(ref SkinIndex);
+        }
+        
+        public bool Equals(SegmentSkinData other)
+        {
+            return SegmentId == other.SegmentId && SkinIndex == other.SkinIndex;
+        }
+        
+        public override bool Equals(object obj)
+        {
+            return obj is SegmentSkinData other && Equals(other);
+        }
+        
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(SegmentId, SkinIndex);
+        }
+    }
+    
+    // 세그먼트별 스킨 정보를 추적하는 NetworkList
+    private readonly NetworkList<SegmentSkinData> _segmentSkins = new NetworkList<SegmentSkinData>();
+    
     #region Dependencies
     /// <summary>게임 매니저 - 게임 상태 및 이벤트 관리</summary>
     private GameManager _gameManager;
@@ -81,6 +118,10 @@ public class PlayerSnakeController : NetworkBehaviour
         _snake = GetComponentInChildren<Snake>(true); 
         NetworkSkinIndex.OnValueChanged += HandleSkinIndexChanged;
         NetworkSnakeSpeed.OnValueChanged += HandleSnakeSpeedChanged;
+        
+        // NetworkList 변경 이벤트 구독 (모든 클라이언트)
+        _segmentSkins.OnListChanged += HandleSegmentSkinListChanged;
+        
         // 초기 색상 적용 (스폰 시점의 값으로) -> 초기 스킨 적용으로 변경
         ApplyPlayerSkin(NetworkSkinIndex.Value);
         
@@ -106,6 +147,27 @@ public class PlayerSnakeController : NetworkBehaviour
             _gameManager.OnMoveDirChanged += HandleMoveDirChanged;
             StartCoroutine(FollowPlayerWithCamera());
         }
+        
+        // Late Joiner를 위한 추가 코드: 클라이언트만 실행
+        if (IsClient && !IsServer) // 순수 클라이언트인 경우만 실행 (호스트는 제외)
+        {
+            // NetworkList의 초기 내용 로깅
+            string content = "";
+            for (int i = 0; i < _segmentSkins.Count; i++)
+            {
+                content += $"[{i}]: ID={_segmentSkins[i].SegmentId}, Skin={_segmentSkins[i].SkinIndex} | ";
+            }
+            Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] Late Joiner 접속 - NetworkList 초기 상태 ({_segmentSkins.Count}개): {content}");
+            
+            if (_segmentSkins.Count > 0)
+            {
+                // 현재 NetworkList에 있는 모든 항목 처리 (Late Joiner용)
+                Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] Late Joiner: 기존 {_segmentSkins.Count}개 세그먼트 스킨 정보 적용 시작");
+                
+                // 지연 적용을 위한 코루틴 시작 (NetworkObject 동기화 완료 대기)
+                StartCoroutine(ApplyInitialSkinsWithDelay());
+            }
+        }
     }
 
     /// <summary>
@@ -127,6 +189,9 @@ public class PlayerSnakeController : NetworkBehaviour
         {
             NetworkSnakeSpeed.OnValueChanged -= HandleSnakeSpeedChanged;
         }
+        
+        // NetworkList 이벤트 구독 해제
+        _segmentSkins.OnListChanged -= HandleSegmentSkinListChanged;
 
         if (IsClient){}
   
@@ -597,12 +662,16 @@ public class PlayerSnakeController : NetworkBehaviour
             // 4. 서버에서 스폰
             networkObject.Spawn(true); // destroyWithScene = true
             Debug.Log($"[{GetType().Name} Server - ID:{NetworkObjectId}] 세그먼트 스폰 완료: NetworkObjectId={networkObject.NetworkObjectId}");
+            
+            // 5. NetworkList에 세그먼트-스킨 정보 추가 (Late Joiner를 위한 핵심 부분)
+            _segmentSkins.Add(new SegmentSkinData(networkObject.NetworkObjectId, skinIndex));
+            Debug.Log($"[{GetType().Name} Server - ID:{NetworkObjectId}] NetworkList에 세그먼트 {networkObject.NetworkObjectId}의 스킨 정보 추가");
 
-            // 5. 소유권 클라이언트에게 이전
+            // 6. 소유권 클라이언트에게 이전
             networkObject.ChangeOwnership(OwnerClientId);
             Debug.Log($"[{GetType().Name} Server - ID:{NetworkObjectId}] 세그먼트 소유권 이전 -> Client {OwnerClientId}");
 
-            // 6. 모든 클라이언트에게 스폰 알림 (PlayerController ID, Segment ID, 그리고 스킨 인덱스 전달)
+            // 7. 모든 클라이언트에게 스폰 알림 (PlayerController ID, Segment ID, 그리고 스킨 인덱스 전달)
             NotifySegmentSpawnedClientRpc(this.NetworkObjectId, networkObject.NetworkObjectId, skinIndex);
         }
         catch (System.Exception ex)
@@ -849,6 +918,28 @@ public class PlayerSnakeController : NetworkBehaviour
                 Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] 총 {appliedCount}/{segmentCount} 바디 세그먼트에 스킨 적용 완료");
             }
         }
+        
+        // 3. 서버인 경우에만 NetworkList 업데이트
+        if (IsServer && _snakeBodyHandler != null)
+        {
+            // NetworkList 초기화 (기존 항목 제거)
+            _segmentSkins.Clear();
+            
+            // 모든 세그먼트의 스킨 정보 다시 추가
+            foreach (var segment in _snakeBodyHandler._bodySegments)
+            {
+                if (segment != null)
+                {
+                    NetworkObject netObj = segment.GetComponent<NetworkObject>();
+                    if (netObj != null)
+                    {
+                        _segmentSkins.Add(new SegmentSkinData(netObj.NetworkObjectId, skinIndex));
+                    }
+                }
+            }
+            
+            Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] NetworkList 업데이트: {_segmentSkins.Count}개 세그먼트 스킨 정보 갱신");
+        }
     }
 
     /// <summary>
@@ -881,6 +972,98 @@ public class PlayerSnakeController : NetworkBehaviour
             Debug.LogError($"[{GetType().Name} ID:{NetworkObjectId}] 스킨 적용 중 오류 발생: {ex.Message}");
             return false;
         }
+    }
+
+    /// <summary>
+    /// NetworkList 변경 감지 핸들러
+    /// Late Joiner를 포함한 모든 클라이언트에서 세그먼트 스킨 변경 처리
+    /// </summary>
+    private void HandleSegmentSkinListChanged(NetworkListEvent<SegmentSkinData> changeEvent)
+    {
+        // 서버에서는 이미 스킨이 적용되어 있으므로 클라이언트만 처리
+        if (IsServer && !IsClient) return;
+        
+        // 변경 유형에 따라 처리
+        if (changeEvent.Type == NetworkListEvent<SegmentSkinData>.EventType.Add || 
+            changeEvent.Type == NetworkListEvent<SegmentSkinData>.EventType.Value)
+        {
+            SegmentSkinData skinData = _segmentSkins[changeEvent.Index];
+            bool success = ApplySegmentSkinById(skinData.SegmentId, skinData.SkinIndex);
+            
+            if (!success && IsClient)
+            {
+                // 적용 실패 시 지연 적용 시도 (NetworkObject가 아직 동기화되지 않았을 수 있음)
+                Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] 세그먼트 {skinData.SegmentId}에 즉시 스킨 적용 실패, 지연 적용 시도");
+                StartCoroutine(RetryApplySkinWithDelay(skinData.SegmentId, skinData.SkinIndex));
+            }
+        }
+    }
+    
+    /// <summary>
+    /// 스킨 적용 재시도 코루틴
+    /// </summary>
+    private IEnumerator RetryApplySkinWithDelay(ulong segmentId, int skinIndex)
+    {
+        // 3번까지 재시도
+        for (int i = 0; i < 3; i++)
+        {
+            yield return new WaitForSeconds(0.5f * (i + 1)); // 점점 더 긴 간격으로 재시도
+            
+            Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] 세그먼트 {segmentId} 스킨 지연 적용 시도 #{i+1}");
+            if (ApplySegmentSkinById(segmentId, skinIndex))
+            {
+                Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] 세그먼트 {segmentId} 스킨 지연 적용 성공");
+                yield break; // 성공적으로 적용됨
+            }
+        }
+        
+        Debug.LogWarning($"[{GetType().Name} ID:{NetworkObjectId}] 세그먼트 {segmentId} 스킨 지연 적용 최종 실패");
+    }
+
+    /// <summary>
+    /// NetworkObjectId를 기반으로 세그먼트에 스킨 적용
+    /// </summary>
+    /// <param name="segmentId">적용할 세그먼트의 NetworkObjectId</param>
+    /// <param name="skinIndex">적용할 스킨 인덱스</param>
+    /// <param name="logWarning">NetworkObject를 찾지 못했을 때 경고 로그 출력 여부</param>
+    /// <returns>스킨 적용 성공 여부</returns>
+    private bool ApplySegmentSkinById(ulong segmentId, int skinIndex, bool logWarning = true)
+    {
+        // 스킨 인덱스 유효성 검사
+        if (skinIndex < 0 || skinIndex >= playerSkins.Count)
+        {
+            Debug.LogError($"[{GetType().Name} ID:{NetworkObjectId}] 유효하지 않은 스킨 인덱스: {skinIndex}");
+            return false;
+        }
+        
+        // NetworkObject 찾기
+        if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(segmentId, out NetworkObject segmentObj))
+        {
+            // 유효성 검사
+            if (segmentObj != null)
+            {
+                SnakeSkin skinComponent = segmentObj.GetComponent<SnakeSkin>();
+                if (skinComponent != null)
+                {
+                    Material skinMaterial = playerSkins[skinIndex];
+                    skinComponent.ChangeTo(skinMaterial);
+                    Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] NetworkList 변경으로 세그먼트 {segmentId}에 스킨 {skinIndex} 적용");
+                    return true;
+                }
+                else
+                {
+                    Debug.LogWarning($"[{GetType().Name} ID:{NetworkObjectId}] 세그먼트 {segmentId}에 SnakeSkin 컴포넌트가 없습니다");
+                    return false;
+                }
+            }
+        }
+        else if (logWarning)
+        {
+            // 아직 NetworkObject가 스폰되지 않았을 수 있음 (타이밍 이슈)
+            Debug.LogWarning($"[{GetType().Name} ID:{NetworkObjectId}] 세그먼트 ID {segmentId}를 찾을 수 없습니다 (아직 스폰되지 않았을 수 있음)");
+        }
+        
+        return false;
     }
 
     #endregion
@@ -965,6 +1148,73 @@ public class PlayerSnakeController : NetworkBehaviour
         catch (System.Exception ex)
         {
             Debug.LogError($"[{GetType().Name} Server ID:{NetworkObjectId}] Beef 처리 중 오류: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Late Joiner를 위한 지연 스킨 적용 코루틴
+    /// NetworkObject 동기화가 완료된 후 스킨 적용을 시도합니다.
+    /// </summary>
+    private IEnumerator ApplyInitialSkinsWithDelay()
+    {
+        // NetworkObject 동기화 완료 대기
+        yield return new WaitForSeconds(0.5f);
+        
+        // 첫 번째 시도
+        Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] Late Joiner: 첫 번째 스킨 적용 시도 시작");
+        int appliedCount = 0;
+        int totalCount = _segmentSkins.Count;
+        
+        for (int i = 0; i < _segmentSkins.Count; i++)
+        {
+            SegmentSkinData skinData = _segmentSkins[i];
+            if (ApplySegmentSkinById(skinData.SegmentId, skinData.SkinIndex, false))
+            {
+                appliedCount++;
+            }
+        }
+        
+        Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] Late Joiner: 첫 번째 시도 결과 - {appliedCount}/{totalCount} 성공");
+        
+        // 일부 적용 실패시 추가 시도
+        if (appliedCount < totalCount)
+        {
+            // 추가 대기 후 두 번째 시도
+            yield return new WaitForSeconds(1.0f);
+            
+            Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] Late Joiner: 두 번째 스킨 적용 시도 시작");
+            appliedCount = 0;
+            
+            for (int i = 0; i < _segmentSkins.Count; i++)
+            {
+                SegmentSkinData skinData = _segmentSkins[i];
+                if (ApplySegmentSkinById(skinData.SegmentId, skinData.SkinIndex, false))
+                {
+                    appliedCount++;
+                }
+            }
+            
+            Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] Late Joiner: 두 번째 시도 결과 - {appliedCount}/{totalCount} 성공");
+            
+            // 세 번째 시도 (마지막)
+            if (appliedCount < totalCount)
+            {
+                yield return new WaitForSeconds(1.5f);
+                
+                Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] Late Joiner: 세 번째(마지막) 스킨 적용 시도 시작");
+                appliedCount = 0;
+                
+                for (int i = 0; i < _segmentSkins.Count; i++)
+                {
+                    SegmentSkinData skinData = _segmentSkins[i];
+                    if (ApplySegmentSkinById(skinData.SegmentId, skinData.SkinIndex, true))
+                    {
+                        appliedCount++;
+                    }
+                }
+                
+                Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] Late Joiner: 세 번째 시도 결과 - {appliedCount}/{totalCount} 성공");
+            }
         }
     }
 }
