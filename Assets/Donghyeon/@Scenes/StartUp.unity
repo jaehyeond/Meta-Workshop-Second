@@ -441,7 +441,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5281051099969801277, guid: 411a680f608588944a3110ba63c45844, type: 3}
       propertyPath: MaxConnectedPlayers
-      value: 3
+      value: 4
       objectReference: {fileID: 0}
     - target: {fileID: 5555671412201182599, guid: 411a680f608588944a3110ba63c45844, type: 3}
       propertyPath: m_Name
