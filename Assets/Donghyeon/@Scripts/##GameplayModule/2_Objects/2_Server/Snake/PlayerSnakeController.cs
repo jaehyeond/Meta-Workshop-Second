@@ -122,7 +122,11 @@ public class PlayerSnakeController : NetworkBehaviour
         // NetworkList 변경 이벤트 구독 (모든 클라이언트)
         _segmentSkins.OnListChanged += HandleSegmentSkinListChanged;
         
-        // 초기 색상 적용 (스폰 시점의 값으로) -> 초기 스킨 적용으로 변경
+        if (IsServer && playerSkins.Count > 0)
+        {
+            NetworkSkinIndex.Value = UnityEngine.Random.Range(0, playerSkins.Count);
+        }
+
         ApplyPlayerSkin(NetworkSkinIndex.Value);
         
         // 초기 속도 적용
@@ -877,21 +881,9 @@ public class PlayerSnakeController : NetworkBehaviour
     /// </summary>
     private void ApplyPlayerSkin(int skinIndex)
     {
-        if (skinIndex < 0 || skinIndex >= playerSkins.Count)
-        {
-            Debug.LogError($"[{GetType().Name} ID:{NetworkObjectId}] Player Skins 리스트의 인덱스 {skinIndex}가 범위를 벗어났습니다. 리스트 크기: {playerSkins.Count}");
-            return;
-        }
-
-        // 타겟 Material 저장
+  
         targetMaterial = playerSkins[skinIndex];
-        if (targetMaterial == null)
-        {
-            Debug.LogError($"[{GetType().Name} ID:{NetworkObjectId}] Player Skins 리스트의 인덱스 {skinIndex}에 할당된 Material이 null입니다.");
-            return;
-        }
 
-        Debug.Log($"[{GetType().Name} ID:{NetworkObjectId}] 스킨 적용 시작: 인덱스={skinIndex}, Material={targetMaterial.name}");
 
         // 1. Snake Head에 스킨 적용
         ApplyMaterialToComponent(_snake?.Head?.gameObject);

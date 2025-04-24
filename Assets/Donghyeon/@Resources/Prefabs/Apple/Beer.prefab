@@ -12,6 +12,14 @@ PrefabInstance:
       propertyPath: GlobalObjectIdHash
       value: 117655957
       objectReference: {fileID: 0}
+    - target: {fileID: 2423658442099586432, guid: aadf5101685c9684a93e417f03aa6092, type: 3}
+      propertyPath: m_Radius
+      value: 0.1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2423658442099586432, guid: aadf5101685c9684a93e417f03aa6092, type: 3}
+      propertyPath: m_Center.y
+      value: 0.02
+      objectReference: {fileID: 0}
     - target: {fileID: 4213893884200544955, guid: aadf5101685c9684a93e417f03aa6092, type: 3}
       propertyPath: m_Name
       value: Beer
@@ -74,7 +82,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6582432176147619269, guid: aadf5101685c9684a93e417f03aa6092, type: 3}
       propertyPath: m_ConstrainProportionsScale
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7641810443773343392, guid: aadf5101685c9684a93e417f03aa6092, type: 3}
       propertyPath: _valueIncrement
