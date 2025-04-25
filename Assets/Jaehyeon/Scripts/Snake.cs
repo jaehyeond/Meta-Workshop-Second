@@ -136,121 +136,125 @@ public class Snake : BaseObject
     }
 
     // 감지된 충돌 처리 (Owner에서 실행됨)
-    private void ProcessCollision(Component targetComponent)
+// ----------------- Snake.cs -----------------
+// 1. 열거형 및 구조체 추가
+// Snake.cs에 추가해야 하는 코드
+public enum FoodType
+{
+    Apple,
+    Beef,
+    Candy,
+    Beer,
+    Unknown
+}
+
+// ProcessCollision 메소드 수정
+private void ProcessCollision(Component targetComponent)
+{
+    // 소유자가 아니면 처리하지 않음
+    if (!IsOwner) return;
+    
+    // GameObject 참조 확보
+    GameObject target = targetComponent.gameObject;
+    if (target == null) return;
+    
+    // PlayerSnakeController 참조가 없으면 가져오기 시도
+    if (_playerSnakeController == null)
     {
-        // 소유자가 아니면 처리하지 않음
-        if (!IsOwner) return;
-        
-        // GameObject 참조 확보
-        GameObject target = targetComponent.gameObject;
-        if (target == null) return;
-        
-        // PlayerSnakeController 참조가 없으면 가져오기 시도
+        _playerSnakeController = GetComponentInParent<PlayerSnakeController>();
         if (_playerSnakeController == null)
         {
-            _playerSnakeController = GetComponentInParent<PlayerSnakeController>();
-            if (_playerSnakeController == null)
-            {
-                Debug.LogError($"[{GetType().Name}] PlayerSnakeController 참조를 찾을 수 없습니다!");
-                return;
-            }
-        }
-
-        // 음식 타입 확인 (이름 기반)
-        string targetName = target.name;
-        bool isApple = targetName.Contains("Apple");
-        bool isCandy = targetName.Contains("Candy");
-        bool isBeef = targetName.Contains("Beef");
-        bool isBeer = targetName.Contains("Beer");
-        
-        // Apple, Candy, Beef, Beer 또는 다른 음식 아이템인지 확인
-        if (isApple || isCandy || isBeef || isBeer)
-        {
-            string foodType = isApple ? "Apple" : (isCandy ? "Candy" : (isBeef ? "Beef" : "Beer"));
-            Debug.Log($"[{GetType().Name}] {foodType} 충돌 감지: {targetName}");
-            
-            // BaseObject 컴포넌트를 통해 공통 기능 접근
-            var baseObject = target.GetComponent<BaseObject>();
-            if (baseObject == null)
-            {
-                Debug.LogError($"[{GetType().Name}] {foodType}에서 BaseObject 컴포넌트를 찾을 수 없습니다!");
-                return;
-            }
-            
-            // NetworkObject 컴포넌트 확인
-            NetworkObject foodNetObj = target.GetComponent<NetworkObject>();
-            if (foodNetObj == null)
-            {
-                Debug.LogError($"[{GetType().Name}] {foodType}에서 NetworkObject 컴포넌트를 찾을 수 없습니다!");
-                return;
-            }
-            
-            // Beef인 경우 별도 처리
-            if (isBeef)
-            {
-                // 서버에 Beef 먹었음을 알림
-                _playerSnakeController.NotifyBeefEatenServerRpc(foodNetObj.NetworkObjectId);
-                
-                // 로컬에서 음식을 임시로 비활성화 (시각적 피드백을 위해)
-                target.SetActive(false);
-                
-                Debug.Log($"[{GetType().Name}] Beef 처리 완료: NetworkID={foodNetObj.NetworkObjectId}");
-                return; // 여기서 종료
-            }
-            
-            // 음식 값 결정 (Apple: 양수, Candy 및 Beer: 음수)
-            int foodValue;
-            
-            // 타입별로 적절한 값 추출
-            if (isApple)
-            {
-                // Apple에서 ValueIncrement 값 얻기 (리플렉션 사용)
-                var appleType = baseObject.GetType();
-                var valueProperty = appleType.GetProperty("ValueIncrement");
-                
-                if (valueProperty != null)
-                {
-                    foodValue = (int)valueProperty.GetValue(baseObject);
-                }
-                else
-                {
-                    Debug.LogWarning($"[{GetType().Name}] Apple에서 ValueIncrement 속성을 찾을 수 없습니다. 기본값 1 사용");
-                    foodValue = 1; // 기본값
-                }
-            }
-            else if (isCandy) // Candy 처리
-            {
-                // Candy에서 ValueDecrement 값 얻기 (리플렉션 사용)
-                var candyType = baseObject.GetType();
-                var valueProperty = candyType.GetProperty("ValueDecrement");
-                
-                if (valueProperty != null)
-                {
-                    // Candy는 음수값으로 적용
-                    foodValue = -((int)valueProperty.GetValue(baseObject));
-                }
-                else
-                {
-                    Debug.LogWarning($"[{GetType().Name}] Candy에서 ValueDecrement 속성을 찾을 수 없습니다. 기본값 -2 사용");
-                    foodValue = -2; // 기본값
-                }
-            }
-            else // Beer 처리 (Candy와 동일하게 처리)
-            {
-                // Beer는 Candy와 동일하게 처리 - 고정 음수 값 적용
-                foodValue = -4; // Beer에 고정 값 -4 적용 (세그먼트 제거를 위한 값)
-                Debug.Log($"[{GetType().Name}] Beer 감지: 고정 값 {foodValue} 적용");
-            }
-            
-            // 서버에 음식 먹었음을 알림
-            _playerSnakeController.NotifyFoodEatenServerRpc(foodValue, foodNetObj.NetworkObjectId);
-            
-            // 로컬에서 음식을 임시로 비활성화 (시각적 피드백을 위해)
-            target.SetActive(false);
-            
-            Debug.Log($"[{GetType().Name}] {foodType} 처리 완료: Value={foodValue}, NetworkID={foodNetObj.NetworkObjectId}");
+            Debug.LogError($"[{GetType().Name}] PlayerSnakeController 참조를 찾을 수 없습니다!");
+            return;
         }
     }
+    
+    // 음식 타입 확인 (이름 기반)
+    string targetName = target.name;
+    FoodType foodType = FoodType.Unknown;
+    
+    if (targetName.Contains("Apple")) foodType = FoodType.Apple;
+    else if (targetName.Contains("Beef")) foodType = FoodType.Beef;
+    else if (targetName.Contains("Candy")) foodType = FoodType.Candy;
+    else if (targetName.Contains("Beer")) foodType = FoodType.Beer;
+    else return; // 알 수 없는 타입은 무시
+    
+    // NetworkObject 컴포넌트 확인
+    NetworkObject foodNetObj = target.GetComponent<NetworkObject>();
+    if (foodNetObj == null)
+    {
+        Debug.LogError($"[{GetType().Name}] {foodType}에서 NetworkObject 컴포넌트를 찾을 수 없습니다!");
+        return;
+    }
+    
+    // 로컬에서 음식을 임시로 비활성화 (시각적 피드백을 위해)
+    target.SetActive(false);
+    
+    // 음식 종류별 처리
+    switch (foodType)
+    {
+        case FoodType.Beef:
+            // Beef는 속도와 크기를 증가시키는 전용 메서드 사용
+            _playerSnakeController.NotifyBeefEatenServerRpc(foodNetObj.NetworkObjectId);
+            Debug.Log($"[{GetType().Name}] Beef 처리 완료: NetworkID={foodNetObj.NetworkObjectId}");
+            break;
+            
+        case FoodType.Apple:
+        case FoodType.Candy:
+        case FoodType.Beer:
+            // 나머지는 값 기반으로 처리
+            int foodValue = GetFoodValue(target, foodType);
+            _playerSnakeController.NotifyFoodEatenServerRpc(foodValue, foodNetObj.NetworkObjectId);
+            Debug.Log($"[{GetType().Name}] {foodType} 처리 완료: Value={foodValue}, NetworkID={foodNetObj.NetworkObjectId}");
+            break;
+    }
+}
+
+// 음식 값 계산 메서드
+private int GetFoodValue(GameObject target, FoodType foodType)
+{
+    BaseObject baseObject = target.GetComponent<BaseObject>();
+    if (baseObject == null) 
+    {
+        // 기본값 사용
+        switch (foodType)
+        {
+            case FoodType.Apple: return 10;
+            case FoodType.Beer: return -30;
+            case FoodType.Candy: return -5;
+            default: return 0;
+        }
+    }
+    
+    switch (foodType)
+    {
+        case FoodType.Apple:
+            // Apple에서 ValueIncrement 값 얻기 (리플렉션 사용)
+            var appleType = baseObject.GetType();
+            var valueProperty = appleType.GetProperty("ValueIncrement");
+            
+            if (valueProperty != null)
+                return (int)valueProperty.GetValue(baseObject);
+            else
+                return 10; // 기본값
+            
+        case FoodType.Candy:
+            // Candy에서 ValueDecrement 값 얻기 (리플렉션 사용)
+            var candyType = baseObject.GetType();
+            var decProperty = candyType.GetProperty("ValueDecrement");
+            
+            if (decProperty != null)
+                return -((int)decProperty.GetValue(baseObject));
+            else
+                return -5; // 기본값
+            
+        case FoodType.Beer:
+            return -30; // Beer는 큰 페널티 적용
+            
+        default:
+            return 0;
+    }
+}
 
     [ClientRpc]
     private void SyncHeadPositionClientRpc(Vector3 position, Quaternion rotation)

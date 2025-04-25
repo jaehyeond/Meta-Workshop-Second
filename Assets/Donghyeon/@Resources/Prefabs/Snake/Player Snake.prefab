@@ -340,6 +340,10 @@ MonoBehaviour:
   - {fileID: 2100000, guid: 0af24fda8096bd94f87a73988af215b4, type: 2}
   - {fileID: 2100000, guid: 2fde1880cebb66d4a8dc39c9a536ce9b, type: 2}
   - {fileID: 2100000, guid: 246d0247b3bce65499e4399e67674346, type: 2}
+  targetMaterial: {fileID: 0}
+  _mobiusCollider: {fileID: 3973669903052977899, guid: 149dfb2807a6cea46989c801c978dbdf, type: 3}
+  _surfaceRaycastDistance: 10
+  _surfaceHeightOffset: 0.05
 --- !u!114 &753773255163663940
 MonoBehaviour:
   m_ObjectHideFlags: 0
