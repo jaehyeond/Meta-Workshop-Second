@@ -78,7 +78,7 @@ public class AppleManager : MonoBehaviour
     [SerializeField] private float _spawnHeight = 0.0f;
     [SerializeField] private string[] _spawnablePrefabNames = { 
         "Apple", "Beer", "Beef", "Candy", "Milk", "Egg", "Firstaid", 
-        "Firstaid_2", "IcebergLettuce", "Carrot", "Apricot", "Coke2", "Biscuit2" 
+        "Firstaid", "Iceberg", "Carrot", "Apricot", "Coke", "Biscuit" 
     };
     
     // 스폰된 모든 음식 객체 추적
@@ -138,6 +138,8 @@ public class AppleManager : MonoBehaviour
         
         if (newFood != null)
         {
+            // 음식 크기 설정 코드 제거 (원래 프리팹의 스케일 유지)
+            
             // 새 음식 객체 추적 리스트에 추가
             _spawnedFood.Add(newFood);
             

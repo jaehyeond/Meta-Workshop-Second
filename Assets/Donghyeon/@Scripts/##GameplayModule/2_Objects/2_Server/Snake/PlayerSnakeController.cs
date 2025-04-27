@@ -365,15 +365,27 @@ public void NotifyFoodEatenServerRpc(int foodValue, ulong foodNetworkId)
     
     Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 현재 상태: 헤드값={oldHeadValue}, 점수={oldScore}, 세그먼트수={segmentCount}");
     
-    // 음식 종류별 처리
-    switch (DetermineFoodType(foodValue))
+    // 음식 종류별 처리 - 모든 음식 타입을 처리하도록 확장
+    FoodType foodTypeEnum = DetermineFoodType(foodValue);
+    
+    // 음식 효과 적용
+    switch (foodTypeEnum)
     {
+        // 긍정적 효과 음식 (점수 증가)
         case FoodType.Apple:
+        case FoodType.Milk:
+        case FoodType.Egg:
+        case FoodType.Carrot:
+        case FoodType.IcebergLettuce:
+        case FoodType.Apricot:
             ProcessAppleFood(foodValue, oldHeadValue, oldScore);
             break;
             
+        // 부정적 효과 음식 (세그먼트 감소)
         case FoodType.Candy:
         case FoodType.Beer:
+        case FoodType.Coke2:
+        case FoodType.Biscuit2:
             if (segmentCount > 0)
             {
                 ProcessNegativeFood(foodValue, oldHeadValue, oldScore);
@@ -384,8 +396,10 @@ public void NotifyFoodEatenServerRpc(int foodValue, ulong foodNetworkId)
             }
             break;
             
+        // 특별 효과 없음 - 기본 처리
         default:
-            Debug.LogWarning($"[{GetType().Name} Server ID:{NetworkObjectId}] 알 수 없는 음식 값: {foodValue}");
+            Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 일반 음식 타입 {foodTypeEnum} 처리: 기본 효과 적용");
+            ProcessAppleFood(foodValue, oldHeadValue, oldScore);
             break;
     }
     
@@ -399,21 +413,56 @@ public void NotifyFoodEatenServerRpc(int foodValue, ulong foodNetworkId)
 // 7. 추가 헬퍼 메서드
 private FoodType DetermineFoodType(int foodValue)
 {
+    // 음식값에 따른 음식 타입 판별
+    // 양수값 - 긍정적인 효과 음식
+    // 음수값 - 부정적인 효과 음식
+    
+    if (foodValue == 30) return FoodType.Beef;
+    if (foodValue == 20) return FoodType.Milk;
+    if (foodValue == 15) return FoodType.IcebergLettuce;
+    if (foodValue == 10) return FoodType.Apple; // Apple, Carrot, Egg, Apricot 모두 10인데 구분 불가
+    
+    if (foodValue == -5) return FoodType.Candy;
+    if (foodValue == -10) return FoodType.Biscuit2;
+    if (foodValue == -15) return FoodType.Coke2;
+    if (foodValue == -20) return FoodType.Apricot;
+    if (foodValue == -30) return FoodType.Beer;
+   
+    
+    // 특정 값이 없는 경우 범위로 판단
     if (foodValue >= 30) return FoodType.Beef;
+    if (foodValue >= 20) return FoodType.Milk;
+    if (foodValue >= 15) return FoodType.IcebergLettuce;
     if (foodValue > 0) return FoodType.Apple;
+    
     if (foodValue <= -30) return FoodType.Beer;
+    if (foodValue <= -20) return FoodType.Apricot;
+    if (foodValue <= -15) return FoodType.Coke2;
+    if (foodValue <= -10) return FoodType.Biscuit2;
     if (foodValue < 0) return FoodType.Candy;
+    
     return FoodType.Unknown;
 }
 
 private string DetermineFoodTypeName(int foodValue)
 {
-    switch (DetermineFoodType(foodValue))
+    FoodType foodType = DetermineFoodType(foodValue);
+    
+    // 모든 음식 타입 이름을 반환
+    switch (foodType)
     {
         case FoodType.Apple: return "Apple";
         case FoodType.Beef: return "Beef";
         case FoodType.Candy: return "Candy";
         case FoodType.Beer: return "Beer";
+        case FoodType.Milk: return "Milk";
+        case FoodType.Egg: return "Egg";
+        case FoodType.IcebergLettuce: return "IcebergLettuce";
+        case FoodType.Carrot: return "Carrot";
+        case FoodType.Apricot: return "Apricot";
+        case FoodType.Coke2: return "Coke2";
+        case FoodType.Biscuit2: return "Biscuit2";
+        case FoodType.Firstaid: return "Firstaid";
         default: return "Unknown";
     }
 }
@@ -543,16 +592,21 @@ private void UpdateGameState(string foodType)
             {
                 appleManager.SpawnApple();  // 이 메소드는 AppleManager의 SpawnablePrefabNames에서 랜덤으로 하나 선택함
                 Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] AppleManager를 통해 새 음식 생성 요청됨");
+                
+                // AppleManager가 가장 최근에 생성한 음식 찾기 (가능하다면)
+                // 여기서 크기 설정 코드 제거 (원래 프리팹의 스케일 유지)
             }
             else
             {
                 // AppleManager가 없다면 직접 생성
                 string[] foodPrefabs = {
                     "Apple", "Beer", "Beef", "Candy", "Milk", "Egg", "Firstaid", 
-                    "Firstaid_2", "IcebergLettuce", "Carrot", "Apricot", "Coke2", "Biscuit2"
+                    "FirPower", "Iceberg", "Carrot", "Apricot", "Coke", "Biscuit"
                 };
                 string randomFood = foodPrefabs[UnityEngine.Random.Range(0, foodPrefabs.Length)];
                 var newFood = _objectManager.Spawn<BaseObject>(randomPosition, Quaternion.identity, prefabName: randomFood);
+                
+                // 직접 생성한 음식의 크기 설정 코드 제거 (원래 프리팹의 스케일 유지)
                 Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 새 {randomFood} 직접 생성됨: 위치={randomPosition}");
             }
         }

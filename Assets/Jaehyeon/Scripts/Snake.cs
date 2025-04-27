@@ -181,19 +181,19 @@ public enum FoodType
         // 음식 타입 확인 (이름 기반)
         string targetName = target.name;
         FoodType foodType = FoodType.Unknown;
-        
+
         if (targetName.Contains("Apple")) foodType = FoodType.Apple;
         else if (targetName.Contains("Beef")) foodType = FoodType.Beef;
         else if (targetName.Contains("Candy")) foodType = FoodType.Candy;
         else if (targetName.Contains("Beer")) foodType = FoodType.Beer; 
         else if (targetName.Contains("Milk")) foodType = FoodType.Milk; 
-        else if (targetName.Contains("IcebergLettuce")) foodType = FoodType.IcebergLettuce;
+        else if (targetName.Contains("Iceberg")) foodType = FoodType.IcebergLettuce; // "Iceberg Lettuce"도 감지
         else if (targetName.Contains("Carrot")) foodType = FoodType.Carrot;
         else if (targetName.Contains("Egg")) foodType = FoodType.Egg;
         else if (targetName.Contains("Apricot")) foodType = FoodType.Apricot;
-        else if (targetName.Contains("Coke2")) foodType = FoodType.Coke2;
-        else if (targetName.Contains("Biscuit2")) foodType = FoodType.Biscuit2;
-        else if (targetName.Contains("Firstaid")) foodType = FoodType.Firstaid;
+        else if (targetName.Contains("Coke")) foodType = FoodType.Coke2; // "Coke 2"도 감지
+        else if (targetName.Contains("Biscuit")) foodType = FoodType.Biscuit2; // "Biscuit 2"도 감지
+        else if (targetName.Contains("Firstaid")) foodType = FoodType.Firstaid; // "Firstaid"와 "Firstaid 2" 모두 감지
         else return; // 알 수 없는 타입은 무시
         
         // NetworkObject 컴포넌트 확인

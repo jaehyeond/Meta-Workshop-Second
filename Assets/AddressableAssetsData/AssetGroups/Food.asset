@@ -22,13 +22,13 @@ MonoBehaviour:
     - PreLoad
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 1120b8c375b0e7846b204eca08f7d580
-    m_Address: Biscuit 2
+    m_Address: Biscuit
     m_ReadOnly: 0
     m_SerializedLabels:
     - PreLoad
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 25bbe7e3e1549bd4e862e09481633cb7
-    m_Address: Coke 2
+    m_Address: Coke
     m_ReadOnly: 0
     m_SerializedLabels:
     - PreLoad
@@ -70,13 +70,13 @@ MonoBehaviour:
     - PreLoad
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: bf58252b67b807e4eb830e9401bb344d
-    m_Address: Firstaid_2
+    m_Address: FirPower
     m_ReadOnly: 0
     m_SerializedLabels:
     - PreLoad
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: ed94c25278cf27d41af1d90ce4fa6233
-    m_Address: Iceberg Lettuce
+    m_Address: Iceberg
     m_ReadOnly: 0
     m_SerializedLabels:
     - PreLoad
