@@ -1377,6 +1377,45 @@ private void UpdateGameState(string foodType)
         }
     }
 
+    [ServerRpc(RequireOwnership = true)]
+    public void NotifyFirPowerEatenServerRpc(ulong firPowerNetworkId)
+    {
+        Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] FirPower 먹음 알림: FirPowerID={firPowerNetworkId}");
+        if (!IsServer)
+        {
+            Debug.LogError($"[{GetType().Name} ID:{NetworkObjectId}] ServerRpc가 서버가 아닌 환경에서 실행됨");
+            return;
+        }
+        
+        try
+        {
+            // 크기 증가 처리
+            const float SCALE_INCREMENT = 0.1f;
+            const float MAX_SCALE = 2.0f;
+            
+            float currentScale = NetworkSnakeScale.Value;
+            float newScale = Mathf.Min(currentScale + SCALE_INCREMENT, MAX_SCALE);
+            NetworkSnakeScale.Value = newScale;
+            
+            Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 크기 증가: {currentScale} → {newScale}");
+            
+            // BasicGameState 업데이트
+            BasicGameState gameState = FindObjectOfType<BasicGameState>();
+            if (gameState != null)
+            {
+                gameState.UpdatePlayerScore(OwnerClientId, "FirPower");
+            }
+            
+            // 음식 오브젝트 제거 및 새 음식 생성
+            DespawnFoodObject(firPowerNetworkId, "FirPower");
+            SpawnNewRandomFood();
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[{GetType().Name} Server ID:{NetworkObjectId}] FirPower 처리 중 오류: {ex.Message}");
+        }
+    }
+
     /// <summary>
     /// Late Joiner를 위한 지연 스킨 적용 코루틴
     /// NetworkObject 동기화가 완료된 후 스킨 적용을 시도합니다.

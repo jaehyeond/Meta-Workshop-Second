@@ -151,6 +151,7 @@ public enum FoodType
     Apricot,
     Coke2,
     Biscuit2,
+    FirPower,
     Unknown
 }
 
@@ -194,6 +195,7 @@ public enum FoodType
         else if (targetName.Contains("Coke")) foodType = FoodType.Coke2; // "Coke 2"도 감지
         else if (targetName.Contains("Biscuit")) foodType = FoodType.Biscuit2; // "Biscuit 2"도 감지
         else if (targetName.Contains("Firstaid")) foodType = FoodType.Firstaid; // "Firstaid"와 "Firstaid 2" 모두 감지
+        else if (targetName.Contains("FirPower")) foodType = FoodType.FirPower; // FirPower 감지 추가
         else return; // 알 수 없는 타입은 무시
         
         // NetworkObject 컴포넌트 확인
@@ -216,6 +218,12 @@ public enum FoodType
                 Debug.Log($"[{GetType().Name}] Firstaid 처리 완료: NetworkID={foodNetObj.NetworkObjectId}");
                 break;
             
+            case FoodType.FirPower:
+                // FirPower는 크기만 증가시키는 전용 메서드 사용
+                _playerSnakeController.NotifyFirPowerEatenServerRpc(foodNetObj.NetworkObjectId);
+                Debug.Log($"[{GetType().Name}] FirPower 처리 완료: NetworkID={foodNetObj.NetworkObjectId}");
+                break;
+            
             // case FoodType.Beef:
             //     // Beef는 크기만 증가시키는 전용 메서드 사용
             //     _playerSnakeController.NotifyBeefEatenServerRpc(foodNetObj.NetworkObjectId);
@@ -232,6 +240,7 @@ public enum FoodType
             case FoodType.Apricot:
             case FoodType.Coke2:
             case FoodType.Biscuit2:
+            case FoodType.Beef: // Beef도 일반 처리에 포함시켜서 점수 증가 기능은 유지
             
                 // 나머지는 값 기반으로 처리
                 int foodValue = GetFoodValue(target, foodType);
@@ -254,6 +263,7 @@ public enum FoodType
                 case FoodType.Beer: return -30;
                 case FoodType.Candy: return -5;
                 case FoodType.Firstaid: return 0;
+                case FoodType.FirPower: return 0; // FirPower는 점수 효과 없음
                 case FoodType.Milk: return 20;
                 case FoodType.IcebergLettuce: return 15;
                 case FoodType.Carrot: return 10;
