@@ -8,6 +8,7 @@ using VContainer;
 using VContainer.Unity;
 using Vector3 = UnityEngine.Vector3;
 
+
 public class Snake : BaseObject
 {
     [Header("Core Components")]
@@ -135,126 +136,191 @@ public class Snake : BaseObject
         }
     }
 
-    // 감지된 충돌 처리 (Owner에서 실행됨)
-// ----------------- Snake.cs -----------------
-// 1. 열거형 및 구조체 추가
-// Snake.cs에 추가해야 하는 코드
+
 public enum FoodType
 {
     Apple,
     Beef,
     Candy,
     Beer,
+    Firstaid,
+    Milk,
+    IcebergLettuce,
+    Carrot,
+    Egg,
+    Apricot,
+    Coke2,
+    Biscuit2,
     Unknown
 }
 
-// ProcessCollision 메소드 수정
-private void ProcessCollision(Component targetComponent)
-{
-    // 소유자가 아니면 처리하지 않음
-    if (!IsOwner) return;
-    
-    // GameObject 참조 확보
-    GameObject target = targetComponent.gameObject;
-    if (target == null) return;
-    
-    // PlayerSnakeController 참조가 없으면 가져오기 시도
-    if (_playerSnakeController == null)
+
+
+
+    // 감지된 충돌 처리 (Owner에서 실행됨)
+    private void ProcessCollision(Component targetComponent)
     {
-        _playerSnakeController = GetComponentInParent<PlayerSnakeController>();
+        // 소유자가 아니면 처리하지 않음
+        if (!IsOwner) return;
+        
+        // GameObject 참조 확보
+        GameObject target = targetComponent.gameObject;
+        if (target == null) return;
+        
+        // PlayerSnakeController 참조가 없으면 가져오기 시도
         if (_playerSnakeController == null)
         {
-            Debug.LogError($"[{GetType().Name}] PlayerSnakeController 참조를 찾을 수 없습니다!");
+            _playerSnakeController = GetComponentInParent<PlayerSnakeController>();
+            if (_playerSnakeController == null)
+            {
+                Debug.LogError($"[{GetType().Name}] PlayerSnakeController 참조를 찾을 수 없습니다!");
+                return;
+            }
+        }
+        
+        // 음식 타입 확인 (이름 기반)
+        string targetName = target.name;
+        FoodType foodType = FoodType.Unknown;
+        
+        if (targetName.Contains("Apple")) foodType = FoodType.Apple;
+        else if (targetName.Contains("Beef")) foodType = FoodType.Beef;
+        else if (targetName.Contains("Candy")) foodType = FoodType.Candy;
+        else if (targetName.Contains("Beer")) foodType = FoodType.Beer; 
+        else if (targetName.Contains("Milk")) foodType = FoodType.Milk; 
+        else if (targetName.Contains("IcebergLettuce")) foodType = FoodType.IcebergLettuce;
+        else if (targetName.Contains("Carrot")) foodType = FoodType.Carrot;
+        else if (targetName.Contains("Egg")) foodType = FoodType.Egg;
+        else if (targetName.Contains("Apricot")) foodType = FoodType.Apricot;
+        else if (targetName.Contains("Coke2")) foodType = FoodType.Coke2;
+        else if (targetName.Contains("Biscuit2")) foodType = FoodType.Biscuit2;
+        else if (targetName.Contains("Firstaid")) foodType = FoodType.Firstaid;
+        else return; // 알 수 없는 타입은 무시
+        
+        // NetworkObject 컴포넌트 확인
+        NetworkObject foodNetObj = target.GetComponent<NetworkObject>();
+        if (foodNetObj == null)
+        {
+            Debug.LogError($"[{GetType().Name}] {foodType}에서 NetworkObject 컴포넌트를 찾을 수 없습니다!");
             return;
         }
-    }
-    
-    // 음식 타입 확인 (이름 기반)
-    string targetName = target.name;
-    FoodType foodType = FoodType.Unknown;
-    
-    if (targetName.Contains("Apple")) foodType = FoodType.Apple;
-    else if (targetName.Contains("Beef")) foodType = FoodType.Beef;
-    else if (targetName.Contains("Candy")) foodType = FoodType.Candy;
-    else if (targetName.Contains("Beer")) foodType = FoodType.Beer;
-    else return; // 알 수 없는 타입은 무시
-    
-    // NetworkObject 컴포넌트 확인
-    NetworkObject foodNetObj = target.GetComponent<NetworkObject>();
-    if (foodNetObj == null)
-    {
-        Debug.LogError($"[{GetType().Name}] {foodType}에서 NetworkObject 컴포넌트를 찾을 수 없습니다!");
-        return;
-    }
-    
-    // 로컬에서 음식을 임시로 비활성화 (시각적 피드백을 위해)
-    target.SetActive(false);
-    
-    // 음식 종류별 처리
-    switch (foodType)
-    {
-        case FoodType.Beef:
-            // Beef는 속도와 크기를 증가시키는 전용 메서드 사용
-            _playerSnakeController.NotifyBeefEatenServerRpc(foodNetObj.NetworkObjectId);
-            Debug.Log($"[{GetType().Name}] Beef 처리 완료: NetworkID={foodNetObj.NetworkObjectId}");
-            break;
-            
-        case FoodType.Apple:
-        case FoodType.Candy:
-        case FoodType.Beer:
-            // 나머지는 값 기반으로 처리
-            int foodValue = GetFoodValue(target, foodType);
-            _playerSnakeController.NotifyFoodEatenServerRpc(foodValue, foodNetObj.NetworkObjectId);
-            Debug.Log($"[{GetType().Name}] {foodType} 처리 완료: Value={foodValue}, NetworkID={foodNetObj.NetworkObjectId}");
-            break;
-    }
-}
-
-// 음식 값 계산 메서드
-private int GetFoodValue(GameObject target, FoodType foodType)
-{
-    BaseObject baseObject = target.GetComponent<BaseObject>();
-    if (baseObject == null) 
-    {
-        // 기본값 사용
+        
+        // 로컬에서 음식을 임시로 비활성화 (시각적 피드백을 위해)
+        target.SetActive(false);
+        
+        // 음식 종류별 처리
         switch (foodType)
         {
-            case FoodType.Apple: return 10;
-            case FoodType.Beer: return -30;
-            case FoodType.Candy: return -5;
-            default: return 0;
+            case FoodType.Firstaid:
+                // Firstaid는 속도만 증가시키는 전용 메서드 사용
+                _playerSnakeController.NotifyFirstaidEatenServerRpc(foodNetObj.NetworkObjectId);
+                Debug.Log($"[{GetType().Name}] Firstaid 처리 완료: NetworkID={foodNetObj.NetworkObjectId}");
+                break;
+            
+            // case FoodType.Beef:
+            //     // Beef는 크기만 증가시키는 전용 메서드 사용
+            //     _playerSnakeController.NotifyBeefEatenServerRpc(foodNetObj.NetworkObjectId);
+            //     Debug.Log($"[{GetType().Name}] Beef 처리 완료: NetworkID={foodNetObj.NetworkObjectId}");
+            //     break;
+            
+            case FoodType.Apple:
+            case FoodType.Candy:
+            case FoodType.Beer:
+            case FoodType.Milk:
+            case FoodType.IcebergLettuce:
+            case FoodType.Carrot:
+            case FoodType.Egg:
+            case FoodType.Apricot:
+            case FoodType.Coke2:
+            case FoodType.Biscuit2:
+            
+                // 나머지는 값 기반으로 처리
+                int foodValue = GetFoodValue(target, foodType);
+                _playerSnakeController.NotifyFoodEatenServerRpc(foodValue, foodNetObj.NetworkObjectId);
+                Debug.Log($"[{GetType().Name}] {foodType} 처리 완료: Value={foodValue}, NetworkID={foodNetObj.NetworkObjectId}");
+                break;
         }
     }
-    
-    switch (foodType)
+
+    // 음식 값 계산 메서드
+    private int GetFoodValue(GameObject target, FoodType foodType)
     {
-        case FoodType.Apple:
-            // Apple에서 ValueIncrement 값 얻기 (리플렉션 사용)
-            var appleType = baseObject.GetType();
-            var valueProperty = appleType.GetProperty("ValueIncrement");
-            
-            if (valueProperty != null)
-                return (int)valueProperty.GetValue(baseObject);
-            else
-                return 10; // 기본값
-            
-        case FoodType.Candy:
-            // Candy에서 ValueDecrement 값 얻기 (리플렉션 사용)
-            var candyType = baseObject.GetType();
-            var decProperty = candyType.GetProperty("ValueDecrement");
-            
-            if (decProperty != null)
-                return -((int)decProperty.GetValue(baseObject));
-            else
-                return -5; // 기본값
-            
-        case FoodType.Beer:
-            return -30; // Beer는 큰 페널티 적용
-            
-        default:
-            return 0;
+        BaseObject baseObject = target.GetComponent<BaseObject>();
+        if (baseObject == null) 
+        {
+            // 기본값 사용
+            switch (foodType)
+            {
+                case FoodType.Apple: return 10;
+                case FoodType.Beer: return -30;
+                case FoodType.Candy: return -5;
+                case FoodType.Firstaid: return 0;
+                case FoodType.Milk: return 20;
+                case FoodType.IcebergLettuce: return 15;
+                case FoodType.Carrot: return 10;
+                case FoodType.Egg: return 10;
+                case FoodType.Apricot: return 10;
+                case FoodType.Coke2: return -15;
+                case FoodType.Biscuit2: return -10;
+                case FoodType.Beef: return 30;
+                
+                default: return 0;
+            }
+        }
+        
+        switch (foodType)
+        {
+            case FoodType.Apple:
+                // Apple에서 ValueIncrement 값 얻기 (리플렉션 사용)
+                var appleType = baseObject.GetType();
+                var valueProperty = appleType.GetProperty("ValueIncrement");
+                
+                if (valueProperty != null)
+                    return (int)valueProperty.GetValue(baseObject);
+                else
+                    return 10; // 기본값
+                
+            case FoodType.Candy:
+                // Candy에서 ValueDecrement 값 얻기 (리플렉션 사용)
+                var candyType = baseObject.GetType();
+                var decProperty = candyType.GetProperty("ValueDecrement");
+                
+                if (decProperty != null)
+                    return -((int)decProperty.GetValue(baseObject));
+                else
+                    return -5; // 기본값
+                
+            case FoodType.Beer:
+                return -30; // Beer는 큰 페널티 적용
+
+            case FoodType.Milk:
+                return 20;
+
+            case FoodType.IcebergLettuce:
+                return 15;
+
+            case FoodType.Carrot:
+                return 10;
+
+            case FoodType.Egg:
+                return 10;
+
+            case FoodType.Apricot:
+                return 10;
+
+            case FoodType.Coke2:
+                return -15;
+
+            case FoodType.Biscuit2:
+                return -10;
+
+            case FoodType.Beef:
+                return 30;
+
+
+            default:
+                return 0;
+        }
     }
-}
 
     [ClientRpc]
     private void SyncHeadPositionClientRpc(Vector3 position, Quaternion rotation)

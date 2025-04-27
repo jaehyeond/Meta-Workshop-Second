@@ -547,7 +547,10 @@ private void UpdateGameState(string foodType)
             else
             {
                 // AppleManager가 없다면 직접 생성
-                string[] foodPrefabs = {"Apple", "Beer", "Beef", "Candy"};
+                string[] foodPrefabs = {
+                    "Apple", "Beer", "Beef", "Candy", "Milk", "Egg", "Firstaid", 
+                    "Firstaid_2", "IcebergLettuce", "Carrot", "Apricot", "Coke2", "Biscuit2"
+                };
                 string randomFood = foodPrefabs[UnityEngine.Random.Range(0, foodPrefabs.Length)];
                 var newFood = _objectManager.Spawn<BaseObject>(randomPosition, Quaternion.identity, prefabName: randomFood);
                 Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 새 {randomFood} 직접 생성됨: 위치={randomPosition}");
@@ -1231,17 +1234,9 @@ private void UpdateGameState(string foodType)
         }
         try
         {
-            // 1. 속도 증가 처리 (Beef 고유 효과)
-            const float SPEED_INCREMENT = 2f;
-            const float MAX_SPEED = 10.0f;
+            // 1. 속도 증가 코드 제거 (Firstaid로 이동)
             
-            float currentSpeed = NetworkSnakeSpeed.Value;
-            float newSpeed = Mathf.Min(currentSpeed + SPEED_INCREMENT, MAX_SPEED);
-            NetworkSnakeSpeed.Value = newSpeed;
-            
-            Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 속도 증가: {currentSpeed} → {newSpeed}");
-            
-            // 2. 크기 증가 처리 (새로 추가된 기능)
+            // 2. 크기 증가 처리
             const float SCALE_INCREMENT = 0.1f;
             const float MAX_SCALE = 2.0f;
             
@@ -1251,7 +1246,7 @@ private void UpdateGameState(string foodType)
             
             Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 크기 증가: {currentScale} → {newScale}");
             
-            // 3. 점수 및 헤드 값 처리 (Apple과 유사한 방식)
+            // 3. 점수 및 헤드 값 처리
             const int BEEF_VALUE = 30; // Beef는 30점
             
             // 현재 값 저장
@@ -1296,6 +1291,37 @@ private void UpdateGameState(string foodType)
         }
     }
 
+    [ServerRpc(RequireOwnership = true)]
+    public void NotifyFirstaidEatenServerRpc(ulong firstaidNetworkId)
+    {
+        Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] Firstaid 먹음 알림: FirstaidID={firstaidNetworkId}");
+        if (!IsServer)
+        {
+            Debug.LogError($"[{GetType().Name} ID:{NetworkObjectId}] ServerRpc가 서버가 아닌 환경에서 실행됨");
+            return;
+        }
+        
+        try
+        {
+            // 속도 증가 처리
+            const float SPEED_INCREMENT = 2f;
+            const float MAX_SPEED = 10.0f;
+            
+            float currentSpeed = NetworkSnakeSpeed.Value;
+            float newSpeed = Mathf.Min(currentSpeed + SPEED_INCREMENT, MAX_SPEED);
+            NetworkSnakeSpeed.Value = newSpeed;
+            
+            Debug.Log($"[{GetType().Name} Server ID:{NetworkObjectId}] 속도 증가: {currentSpeed} → {newSpeed}");
+            
+            // 음식 오브젝트 제거 및 새 음식 생성
+            DespawnFoodObject(firstaidNetworkId, "Firstaid");
+            SpawnNewRandomFood();
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[{GetType().Name} Server ID:{NetworkObjectId}] Firstaid 처리 중 오류: {ex.Message}");
+        }
+    }
 
     /// <summary>
     /// Late Joiner를 위한 지연 스킨 적용 코루틴

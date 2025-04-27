@@ -76,7 +76,10 @@ public class AppleManager : MonoBehaviour
     [SerializeField] private int _initialAppleCount = 100;
     [SerializeField] public float _spawnAreaRadius = 10f;
     [SerializeField] private float _spawnHeight = 0.0f;
-    [SerializeField] private string[] _spawnablePrefabNames = { "Apple", "Beer", "Beef", "Candy" };
+    [SerializeField] private string[] _spawnablePrefabNames = { 
+        "Apple", "Beer", "Beef", "Candy", "Milk", "Egg", "Firstaid", 
+        "Firstaid_2", "IcebergLettuce", "Carrot", "Apricot", "Coke2", "Biscuit2" 
+    };
     
     // 스폰된 모든 음식 객체 추적
     private List<BaseObject> _spawnedFood = new List<BaseObject>();
