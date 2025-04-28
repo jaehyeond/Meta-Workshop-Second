@@ -70,6 +70,24 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4791c1e99e294bf4f8b730deb505de0a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _initialAppleCount: 10
-  _spawnAreaRadius: 10
+  _initialAppleCount: 12
+  _spawnAreaRadius: 12
   _spawnHeight: 0.6
+  _spawnablePrefabNames:
+  - Apple
+  - Beer
+  - Beef
+  - Candy
+  - Apricot
+  - Biscuit
+  - Coke
+  - Carrot
+  - Milk
+  - Egg
+  - Firstaid
+  - FirPower
+  - Iceberg
+  _minimapContainer: {fileID: 0}
+  _foodIndicatorPrefab: {fileID: 0}
+  _minimapScale: 0.1
+  _foodColors: []
