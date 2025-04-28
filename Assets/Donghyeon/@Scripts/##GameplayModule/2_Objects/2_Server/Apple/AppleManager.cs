@@ -169,7 +169,7 @@ public class AppleManager : MonoBehaviour
     
     private Vector3 GetRandomPosition()
     {
-        float angle = Random.Range(0f, Mathf.PI * 2f);
+        float angle = Random.Range(0f, Mathf.PI * 4f);
         float distance = Random.Range(0f, _spawnAreaRadius);
         
         float x = Mathf.Cos(angle) * distance;
