@@ -421,6 +421,8 @@ private FoodType DetermineFoodType(int foodValue)
     if (foodValue == 20) return FoodType.Milk;
     if (foodValue == 15) return FoodType.IcebergLettuce;
     if (foodValue == 10) return FoodType.Apple; // Apple, Carrot, Egg, Apricot 모두 10인데 구분 불가
+    if(foodValue == 15) return FoodType.Carrot;
+    if(foodValue == 10) return FoodType.Egg;
     
     if (foodValue == -5) return FoodType.Candy;
     if (foodValue == -10) return FoodType.Biscuit2;
@@ -433,6 +435,9 @@ private FoodType DetermineFoodType(int foodValue)
     if (foodValue >= 30) return FoodType.Beef;
     if (foodValue >= 20) return FoodType.Milk;
     if (foodValue >= 15) return FoodType.IcebergLettuce;
+    if (foodValue >= 15) return FoodType.Carrot;
+    if (foodValue >= 10) return FoodType.Egg;
+    
     if (foodValue > 0) return FoodType.Apple;
     
     if (foodValue <= -30) return FoodType.Beer;
