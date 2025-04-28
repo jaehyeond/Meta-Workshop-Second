@@ -23,8 +23,8 @@ public class UI_ScoreBoard : MonoBehaviour
     [SerializeField] private Color neutralScoreColor = Color.white;
     
     [Header("Layout Settings")]
-    [SerializeField] private float verticalSpacing = 15f;         // 플레이어 텍스트 사이의 수직 간격 (줄임)
-    [SerializeField] private float initialOffset = 10f;           // 제목과 첫 번째 플레이어 텍스트 사이의 간격 (줄임)
+    [SerializeField] private float verticalSpacing = 60f;            // 점수 텍스트 간 세로 간격 (증가)
+    [SerializeField] private float initialOffset = 0f;               // 제목과 첫 번째 플레이어 텍스트 사이의 간격 (0으로 설정)
     
     private BasicGameState _gameState;
     private Dictionary<ulong, TextMeshProUGUI> _playerTextElements = new Dictionary<ulong, TextMeshProUGUI>();
@@ -202,13 +202,19 @@ public class UI_ScoreBoard : MonoBehaviour
         RectTransform rectTransform = newTextElement.GetComponent<RectTransform>();
         if (rectTransform != null)
         {
-            // 초기 위치 설정 (정렬 전)
-            float yPosition = -initialOffset - (_playerScoreInfos.Count * verticalSpacing);
-            Vector3 localPosition = rectTransform.localPosition;
-            localPosition.y = yPosition;
-            rectTransform.localPosition = localPosition;
-            
-            Debug.Log($"[UI_ScoreBoard] 플레이어 텍스트 초기 위치 설정: {playerName} -> y={yPosition}");
+            // 첫 번째 플레이어는 고정 위치, 두 번째부터는 아래로 누적
+            rectTransform.anchorMin = new Vector2(1.15f, -4f);
+            rectTransform.anchorMax = new Vector2(1.15f, -4f);
+            rectTransform.pivot = new Vector2(1.15f, -4f);
+            int index = _playerScoreInfos.Count;
+            if (index == 0)
+            {
+                rectTransform.anchoredPosition = new Vector2(-40, -50); // 첫 번째는 고정
+            }
+            else
+            {
+                rectTransform.anchoredPosition = new Vector2(-20, -60 - (index * verticalSpacing)); // 아래로 누적
+            }
         }
         
         // 플레이어 정보 추가
@@ -234,21 +240,16 @@ public class UI_ScoreBoard : MonoBehaviour
     {
         // 점수 내림차순으로 정렬 (높은 점수가 위에 표시)
         _playerScoreInfos.Sort((a, b) => b.Score.CompareTo(a.Score));
-        
-        // 정렬된 순서에 따라 UI 위치 재배치
+        // 1위는 Score바 바로 아래, 2위부터는 아래로 쌓임
         for (int i = 0; i < _playerScoreInfos.Count; i++)
         {
             RectTransform rectTransform = _playerScoreInfos[i].TextElement.GetComponent<RectTransform>();
             if (rectTransform != null)
             {
-                float yPosition = -initialOffset - (i * verticalSpacing);
-                Vector3 localPosition = rectTransform.localPosition;
-                localPosition.y = yPosition;
-                rectTransform.localPosition = localPosition;
+                rectTransform.anchoredPosition = new Vector2(-10, -50 - (i * verticalSpacing));
             }
         }
-        
-        Debug.Log("[UI_ScoreBoard] 순위 재정렬 완료");
+        Debug.Log("[UI_ScoreBoard] 점수 순위대로 UI 위치 재배치 완료");
     }
     
     /// <summary>
